@@ -1,4 +1,4 @@
-# pymoo GUI Framework
+# AGtest-framework
 
 Desktop framework for configuring, running, visualizing, and exporting
 multi-objective optimization experiments based on `pymoo`.
@@ -62,12 +62,12 @@ python run_gui.py
 Or, after installing the package:
 
 ```powershell
-pymoo-gui
+AGtest-framework
 ```
 
 ## Example workflow
 
-1. Start the application with `python run_gui.py` or `pymoo-gui`.
+1. Start the application with `python run_gui.py` or `AGtest-framework`.
 2. Select a benchmark problem, for example `Kursawe`.
 3. Select an optimization algorithm, for example `SPEA2`.
 4. Configure the algorithm parameters and termination settings.
@@ -644,8 +644,8 @@ article, repository release, or both. Update the entry below with the final
 repository URL and DOI when they become available.
 
 ```bibtex
-@software{pymoo_gui_framework,
-  title = {pymoo GUI Framework},
+@software{agtest_framework,
+  title = {AGtest-framework},
   author = {Kristina Valevska},
   year = {2026},
   url = {https://github.com/<user>/<repo>}

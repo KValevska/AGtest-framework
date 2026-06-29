@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pymoo-gui-framework"
+name = "AGtest-framework"
 version = "0.1.0"
-description = "GUI framework for running pymoo algorithms on pymoo problems (refactor of the provided app.py)"
+description = "Desktop framework for configuring and analyzing multi-objective optimization experiments"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -23,7 +23,7 @@ dev = [
 ]
 
 [project.scripts]
-pymoo-gui = "pymoo_gui.app:main"
+AGtest-framework = "pymoo_gui.app:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

@@ -693,7 +693,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         # Initialize widgets, runtime state, and initial previews.
         super().__init__()
-        self.setWindowTitle("pymoo GUI framework")
+        self.setWindowTitle("AGtest-framework")
         self.resize(1500, 920)
         self._thread: Optional[OptimizationWorker] = None
         self._n_obj_widget: Optional[QSpinBox] = None
@@ -1803,6 +1803,7 @@ class MainWindow(QMainWindow):
 def main() -> None:
     # Create the Qt application, show the main window, and enter the event loop.
     app = QApplication(sys.argv)
+    app.setApplicationName("AGtest-framework")
     QLocale.setDefault(QLocale(QLocale.English, QLocale.UnitedStates))
     window = MainWindow()
     window.show()
