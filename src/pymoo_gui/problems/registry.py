@@ -1,18 +1,12 @@
-"""
-EN:
-Problem registry, factory helpers and known Pareto-front loaders for the GUI.
-
-PL:
-Tworzy katalog problemow dostepnych w aplikacji oraz opisuje ich formularze i
-znane fronty Pareto.
-"""
+# Problem registry, factory helpers and known Pareto-front loaders for the GUI.
+# Includes helpers for loading known Pareto fronts used by previews and metrics.
 
 # ------------------------------------------------------------------------------------
-# File: registry.py
-# Contents: benchmark problem registry, factory functions and known Pareto-front loaders.
-# What happens here: local and library-backed problems are described with GUI form fields and optional reference fronts.
-# Role in the framework: defines the optimization problem catalog for dissertation experiments.
-# Author: mgr inz. Kristina Valevska
+# Module: registry.py
+# Summary: benchmark problem registry, factory functions and known Pareto-front loaders.
+# Implementation: local and library-backed problems are described with GUI form fields and optional reference fronts.
+# Responsibility: defines the optimization problem catalog for dissertation experiments.
+# Author: Kristina Valevska, MSc Eng.
 # ------------------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -69,13 +63,7 @@ def _problem_entry(
     form_note: str,
     known_pf_factory: Any = None,
 ) -> Dict[str, Any]:
-    """
-    EN:
-    Build a normalized registry entry for one selectable optimization problem.
-
-    PL:
-    Tworzy opis problemu widoczny w GUI: nazwe, fabryke, pola formularza i znany front.
-    """
+    # Build a normalized registry entry for one selectable optimization problem.
     return {
         "label": label,
         "factory": factory,
@@ -86,13 +74,7 @@ def _problem_entry(
 
 
 def _normalize_pf(values: Any, expected_n_obj: int | None = None) -> np.ndarray | None:
-    """
-    EN:
-    Normalize known Pareto-front data to a finite unique objective matrix.
-
-    PL:
-    Porzadkuje dane znanego frontu Pareto: usuwa bledne i powtarzajace sie wiersze.
-    """
+    # Normalize known Pareto-front data to a finite unique objective matrix.
     if values is None:
         return None
     try:
@@ -113,13 +95,7 @@ def _normalize_pf(values: Any, expected_n_obj: int | None = None) -> np.ndarray 
 
 
 def _load_pf_file(filename: str, expected_n_obj: int | None = None) -> np.ndarray | None:
-    """
-    EN:
-    Load a known Pareto-front text file located next to this module.
-
-    PL:
-    Wczytuje plik z zapisanym frontem Pareto dla lokalnych problemow testowych.
-    """
+    # Load a known Pareto-front text file located next to this module.
     pf_path = Path(__file__).with_name(filename)
     if not pf_path.exists():
         return None
@@ -131,24 +107,12 @@ def _load_pf_file(filename: str, expected_n_obj: int | None = None) -> np.ndarra
 
 
 def _pf_file_loader(filename: str, expected_n_obj: int):
-    """
-    EN:
-    Create a known Pareto-front loader bound to one local `.pf` file.
-
-    PL:
-    Zwraca funkcje wczytujaca konkretny plik frontu Pareto.
-    """
+    # Create a known Pareto-front loader bound to one local `.pf` file.
     return lambda _problem, pf_name=filename, n_obj=expected_n_obj: _load_pf_file(pf_name, expected_n_obj=n_obj)
 
 
 def _zdt_known_pf(problem: Any) -> np.ndarray | None:
-    """
-    EN:
-    Retrieve and normalize a known two-objective ZDT Pareto front from pymoo.
-
-    PL:
-    Pobiera znany front Pareto dla problemow ZDT z biblioteki pymoo.
-    """
+    # Retrieve and normalize a known two-objective ZDT Pareto front from pymoo.
     pf_fn = getattr(problem, "pareto_front", None)
     if not callable(pf_fn):
         return None
@@ -160,13 +124,7 @@ def _zdt_known_pf(problem: Any) -> np.ndarray | None:
 
 
 def _dtlz_known_pf(problem: Any, n_partitions: int = 12) -> np.ndarray | None:
-    """
-    EN:
-    Generate reference directions and evaluate a DTLZ Pareto front approximation.
-
-    PL:
-    Przygotowuje przyblizony znany front Pareto dla problemow DTLZ.
-    """
+    # Generate reference directions and evaluate a DTLZ Pareto front approximation.
     n_obj = int(getattr(problem, "n_obj", 3))
     ref_dirs = get_reference_directions("das-dennis", n_obj, n_partitions=int(n_partitions))
     try:
@@ -181,7 +139,7 @@ def _readonly_n_obj_field(label: str, n_obj: int) -> Dict[str, Any]:
         "default": int(n_obj),
         "kind": "int",
         "read_only": True,
-        "tooltip": f"Wartosc informacyjna dla {label}.",
+        "tooltip": f"Wartość informacyjna dla {label}.",
     }
 
 
@@ -195,13 +153,7 @@ def _n_var_field(label: str, default: int, minimum: int = 1) -> Dict[str, Any]:
 
 
 def _zdt_entry(name: str, default_n_var: int) -> Dict[str, Any]:
-    """
-    EN:
-    Create a GUI registry entry for a pymoo ZDT problem.
-
-    PL:
-    Tworzy opis problemu ZDT, z ktorego GUI buduje formularz i fabryke problemu.
-    """
+    # Create a GUI registry entry for a pymoo ZDT problem.
     label = name.upper()
     return _problem_entry(
         label=label,
@@ -210,19 +162,13 @@ def _zdt_entry(name: str, default_n_var: int) -> Dict[str, Any]:
             "n_var": _n_var_field(label, default_n_var),
             "n_obj": _readonly_n_obj_field(label, 2),
         },
-        form_note=f"{label} uzywa parametru n_var. Liczba celow pozostaje stala i informacyjna.",
+        form_note=f"{label} używa parametru n_var. Liczba celów pozostaje stała i informacyjna.",
         known_pf_factory=_zdt_known_pf,
     )
 
 
 def _dtlz_entry(name: str, default_n_var: int, default_n_obj: int = 3) -> Dict[str, Any]:
-    """
-    EN:
-    Create a GUI registry entry for a pymoo DTLZ problem.
-
-    PL:
-    Tworzy opis problemu DTLZ z liczba zmiennych i celow wybierana w formularzu.
-    """
+    # Create a GUI registry entry for a pymoo DTLZ problem.
     label = name.upper()
     return _problem_entry(
         label=label,
@@ -237,10 +183,10 @@ def _dtlz_entry(name: str, default_n_var: int, default_n_obj: int = 3) -> Dict[s
                 "default": default_n_obj,
                 "kind": "int",
                 "minimum": 2,
-                "tooltip": f"Liczba celow dla {label}.",
+                "tooltip": f"Liczba celów dla {label}.",
             },
         },
-        form_note=f"{label} przekazuje do pymoo zarowno n_var, jak i n_obj.",
+        form_note=f"{label} przekazuje do pymoo zarówno n_var, jak i n_obj.",
         known_pf_factory=_dtlz_known_pf,
     )
 
@@ -264,7 +210,7 @@ def _local_entry(
         label=key_label,
         factory=factory,
         form_fields=fields,
-        form_note=form_note or f"{key_label} uzywa konfiguracji zgodnej z lokalna implementacja frameworka.",
+        form_note=form_note or f"{key_label} używa konfiguracji zgodnej z lokalną implementacją frameworka.",
         known_pf_factory=_pf_file_loader(pf_filename, expected_n_obj=n_obj),
     )
 
@@ -289,7 +235,7 @@ def _wfg_entry(problem_name: str, n_obj: int) -> Dict[str, Any]:
             },
             "n_obj": _readonly_n_obj_field(label, n_obj),
         },
-        form_note=f"{label} korzysta bezposrednio z implementacji pymoo i lokalnego pliku frontu Pareto.",
+        form_note=f"{label} korzysta bezpośrednio z implementacji pymoo i lokalnego pliku frontu Pareto.",
         known_pf_factory=_pf_file_loader(pf_filename, expected_n_obj=n_obj),
     )
 
@@ -313,13 +259,13 @@ PROBLEMS: Dict[str, Dict[str, Any]] = {
         n_obj=2,
         pf_filename="KUR.pf",
         n_var_default=3,
-        form_note="Kursawe uzywa parametru n_var. Liczba celow pozostaje stala i informacyjna.",
+        form_note="Kursawe używa parametru n_var. Liczba celów pozostaje stała i informacyjna.",
     ),
     "schaffer": _problem_entry(
         label="Schaffer",
         factory=make_schaffer,
         form_fields={"n_obj": _readonly_n_obj_field("Schaffer", 2)},
-        form_note="Schaffer uzywa domyslnej konfiguracji lokalnej implementacji.",
+        form_note="Schaffer używa domyślnej konfiguracji lokalnej implementacji.",
         known_pf_factory=_pf_file_loader("SCH1.pf", expected_n_obj=2),
     ),
     "binh2": _local_entry("Binh2", Binh2Problem, n_obj=2, pf_filename="Binh2.pf"),
@@ -330,7 +276,7 @@ PROBLEMS: Dict[str, Dict[str, Any]] = {
         n_obj=2,
         pf_filename="FON.pf",
         n_var_default=3,
-        form_note="FON pozwala zmienic liczbe zmiennych, ale domyslnie uzywa klasycznej konfiguracji n_var=3.",
+        form_note="FON pozwala zmienić liczbę zmiennych, ale domyślnie używa klasycznej konfiguracji n_var=3.",
     ),
     "golinski": _local_entry("Golinski", GolinskiProblem, n_obj=2, pf_filename="Golinski.pf"),
     "osyczka2": _local_entry("Osyczka2", Osyczka2Problem, n_obj=2, pf_filename="Osyczka2.pf"),
@@ -347,7 +293,7 @@ PROBLEMS: Dict[str, Dict[str, Any]] = {
         label="ZDT5",
         factory=make_zdt5,
         form_fields={"n_obj": _readonly_n_obj_field("ZDT5", 2)},
-        form_note="ZDT5 jest problemem dyskretnym i w tym GUI uzywa domyslnej konfiguracji pymoo.",
+        form_note="ZDT5 jest problemem dyskretnym i w tym GUI używa domyślnej konfiguracji pymoo.",
     ),
     "zdt6": _zdt_entry("zdt6", 10),
     "dtlz1": _dtlz_entry("dtlz1", 7),
@@ -449,6 +395,44 @@ PROBLEMS: Dict[str, Dict[str, Any]] = {
     "wfg9_2d": _wfg_entry("wfg9", 2),
     "wfg9_3d": _wfg_entry("wfg9", 3),
 }
+
+for key, entry in PROBLEMS.items():
+    label = str(entry.get("label", key))
+    fields = entry.get("form_fields") or {}
+    n_var = fields.get("n_var")
+    if isinstance(n_var, dict):
+        n_var["tooltip"] = f"Number of variables passed to the {label} problem."
+    n_obj = fields.get("n_obj")
+    if isinstance(n_obj, dict):
+        if n_obj.get("read_only"):
+            n_obj["tooltip"] = f"Informational value for {label}."
+        else:
+            n_obj["tooltip"] = f"Number of objectives for {label}."
+
+    if key.startswith("zdt") and key != "zdt5":
+        entry["form_note"] = (
+            f"{label} uses the n_var parameter. The number of objectives remains fixed and informational."
+        )
+    elif key.startswith("dtlz"):
+        entry["form_note"] = f"{label} passes both n_var and n_obj to pymoo."
+    elif key.startswith("wfg"):
+        entry["form_note"] = (
+            f"{label} uses the pymoo implementation directly together with a local Pareto-front file."
+        )
+    elif key == "kursawe":
+        entry["form_note"] = (
+            "Kursawe uses the n_var parameter. The number of objectives remains fixed and informational."
+        )
+    elif key == "schaffer":
+        entry["form_note"] = "Schaffer uses the default local implementation settings."
+    elif key == "fon":
+        entry["form_note"] = (
+            "FON allows the number of variables to be changed, but defaults to the classical n_var=3 configuration."
+        )
+    elif key == "zdt5":
+        entry["form_note"] = "ZDT5 is a discrete problem and uses the default pymoo configuration in this GUI."
+    else:
+        entry["form_note"] = f"{label} uses the configuration defined by the local framework implementation."
 
 
 __all__ = ["PROBLEMS", "make_kursawe", "make_schaffer", "make_zdt5"]

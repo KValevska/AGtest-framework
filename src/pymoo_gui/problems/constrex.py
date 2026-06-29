@@ -1,14 +1,11 @@
-"""
-EN:
-ConstrEx constrained benchmark problem implementation for pymoo.
-"""
+# ConstrEx constrained benchmark problem implementation for pymoo.
 
 # ------------------------------------------------------------------------------------
-# File: constrex.py
-# Contents: ConstrEx benchmark problem class for pymoo.
-# What happens here: decision vectors are evaluated into the classical two-objective ConstrEx formulation.
-# Role in the framework: provides a constrained non-convex-search benchmark for GUI experiments.
-# Author: mgr inz. Kristina Valevska
+# Module: constrex.py
+# Summary: ConstrEx benchmark problem class for pymoo.
+# Implementation: decision vectors are evaluated into the classical two-objective ConstrEx formulation.
+# Responsibility: provides a constrained non-convex-search benchmark for GUI experiments.
+# Author: Kristina Valevska, MSc Eng.
 # Implementation source: own implementation based on benchmark definition used in the literature.
 # ------------------------------------------------------------------------------------
 
@@ -19,13 +16,8 @@ from pymoo.core.problem import Problem
 
 
 class ConstrExProblem(Problem):
-    """
-    EN:
-    Two-objective constrained ConstrEx benchmark.
-
-    PL:
-    Problem z nieciaglym obszarem dopuszczalnym i wypuklym frontem Pareto.
-    """
+    # Two-objective constrained ConstrEx benchmark.
+    # Problem z nieciaglym obszarem dopuszczalnym i wypuklym frontem Pareto.
 
     def __init__(self):
         super().__init__(

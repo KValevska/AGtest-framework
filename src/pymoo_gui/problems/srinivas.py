@@ -1,14 +1,11 @@
-"""
-EN:
-Srinivas constrained benchmark problem implementation for pymoo.
-"""
+# Srinivas constrained benchmark problem implementation for pymoo.
 
 # ------------------------------------------------------------------------------------
-# File: srinivas.py
-# Contents: Srinivas benchmark problem class for pymoo.
-# What happens here: decision vectors are evaluated into two objectives and two inequality constraints.
-# Role in the framework: provides a constrained bi-objective benchmark for GUI experiments.
-# Author: mgr inz. Kristina Valevska
+# Module: srinivas.py
+# Summary: Srinivas benchmark problem class for pymoo.
+# Implementation: decision vectors are evaluated into two objectives and two inequality constraints.
+# Responsibility: provides a constrained bi-objective benchmark for GUI experiments.
+# Author: Kristina Valevska, MSc Eng.
 # Implementation source: own implementation based on benchmark definitions used in jMetal / pymoo-style frameworks.
 # ------------------------------------------------------------------------------------
 
@@ -19,13 +16,8 @@ from pymoo.core.problem import Problem
 
 
 class SrinivasProblem(Problem):
-    """
-    EN:
-    Two-objective constrained Srinivas benchmark.
-
-    PL:
-    Klasyczny problem z dwiema zmiennymi i dwiema funkcjami celu.
-    """
+    # Two-objective constrained Srinivas benchmark.
+    # Klasyczny problem z dwiema zmiennymi i dwiema funkcjami celu.
 
     def __init__(self):
         super().__init__(

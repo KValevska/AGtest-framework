@@ -1,14 +1,11 @@
-"""
-EN:
-Water resource planning benchmark problem implementation for pymoo. (5 criterion)
-"""
+# Water resource planning benchmark problem implementation for pymoo. (5 criterion)
 
 # ------------------------------------------------------------------------------------
-# File: water.py
-# Contents: Water benchmark problem class for pymoo.
-# What happens here: decision vectors are evaluated into five planning objectives and seven inequality constraints.
-# Role in the framework: provides a classical constrained many-objective engineering benchmark for GUI experiments.
-# Author: mgr inz. Kristina Valevska
+# Module: water.py
+# Summary: Water benchmark problem class for pymoo.
+# Implementation: decision vectors are evaluated into five planning objectives and seven inequality constraints.
+# Responsibility: provides a classical constrained many-objective engineering benchmark for GUI experiments.
+# Author: Kristina Valevska, MSc Eng.
 # Implementation source: own implementation based on benchmark definitions commonly used in the literature.
 # ------------------------------------------------------------------------------------
 
@@ -19,10 +16,7 @@ from pymoo.core.problem import Problem
 
 
 class WaterProblem(Problem):
-    """
-    EN:
-    Five-objective constrained water resource planning benchmark.
-    """
+    # Five-objective constrained water resource planning benchmark.
 
     def __init__(self):
         super().__init__(

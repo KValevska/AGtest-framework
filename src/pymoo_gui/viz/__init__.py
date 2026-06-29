@@ -1,15 +1,9 @@
-"""
-EN:
-Visualization package for embedded Pareto-front plotting components.
-
-PL:
-Grupuje elementy odpowiedzialne za pokazywanie wykresow frontu Pareto w GUI.
-"""
+# Visualization package for embedded Pareto-front plotting components.
 
 # ------------------------------------------------------------------------------------
-# File: __init__.py
-# Contents: visualization package marker.
-# What happens here: the viz namespace is made importable for Pareto plotting modules.
-# Role in the framework: groups visualization components used by the doctoral-dissertation GUI.
-# Author: mgr inż. Kristina Valevska
+# Module: __init__.py
+# Summary: visualization package marker.
+# Implementation: the viz namespace is made importable for Pareto plotting modules.
+# Responsibility: groups visualization components used by the doctoral-dissertation GUI.
+# Author: Kristina Valevska, MSc Eng.
 # ------------------------------------------------------------------------------------

@@ -1,14 +1,11 @@
-"""
-EN:
-Binh2 constrained benchmark problem implementation for pymoo.
-"""
+# Binh2 constrained benchmark problem implementation for pymoo.
 
 # ------------------------------------------------------------------------------------
-# File: binh2.py
-# Contents: Binh2 benchmark problem class for pymoo.
-# What happens here: decision vectors are evaluated into two objective functions and two inequality constraints.
-# Role in the framework: provides a constrained bi-objective benchmark used by the GUI experiments.
-# Author: mgr inz. Kristina Valevska
+# Module: binh2.py
+# Summary: Binh2 benchmark problem class for pymoo.
+# Implementation: decision vectors are evaluated into two objective functions and two inequality constraints.
+# Responsibility: provides a constrained bi-objective benchmark used by the GUI experiments.
+# Author: Kristina Valevska, MSc Eng.
 # Implementation source: own implementation based on benchmark definition used in jMetal / pymoo-style frameworks.
 # ------------------------------------------------------------------------------------
 
@@ -19,10 +16,7 @@ from pymoo.core.problem import Problem
 
 
 class Binh2Problem(Problem):
-    """
-    EN:
-    Two-objective constrained Binh2 benchmark.
-    """
+    # Two-objective constrained Binh2 benchmark.
 
     def __init__(self):
         super().__init__(

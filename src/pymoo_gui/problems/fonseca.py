@@ -1,14 +1,11 @@
-"""
-EN:
-Fonseca benchmark problem implementation for pymoo.
-"""
+# Fonseca benchmark problem implementation for pymoo.
 
 # ------------------------------------------------------------------------------------
-# File: fonseca.py
-# Contents: Fonseca benchmark problem class for pymoo.
-# What happens here: decision vectors are evaluated into two smooth Fonseca-Fleming objective functions.
-# Role in the framework: provides a compact two-objective continuous benchmark for GUI experiments.
-# Author: mgr inz. Kristina Valevska
+# Module: fonseca.py
+# Summary: Fonseca benchmark problem class for pymoo.
+# Implementation: decision vectors are evaluated into two smooth Fonseca-Fleming objective functions.
+# Responsibility: provides a compact two-objective continuous benchmark for GUI experiments.
+# Author: Kristina Valevska, MSc Eng.
 # Implementation source: own implementation based on the Fonseca-Fleming benchmark definition.
 # ------------------------------------------------------------------------------------
 
@@ -21,14 +18,8 @@ from pymoo.core.problem import Problem
 
 
 class FonsecaProblem(Problem):
-    """
-    EN:
-    Two-objective Fonseca-Fleming benchmark with configurable variable count.
-
-    PL:
-    Gladki problem testowy, czesto uzywany do sprawdzania zbieznosci i rozkladu
-    rozwiazan na froncie.
-    """
+    # Two-objective Fonseca-Fleming benchmark with configurable variable count.
+    # Smooth benchmark problem often used to assess convergence and spread.
 
     def __init__(self, n_var: int = 3):
         parsed_n_var = int(n_var)

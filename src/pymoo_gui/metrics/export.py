@@ -24,8 +24,8 @@ from typing import Sequence
 from xml.sax.saxutils import escape
 
 
-EXPORT_DIR_NAME = "Tabeli_metryk"
-SOLUTIONS_EXPORT_DIR_NAME = "Tabeli_rozwiązań"
+EXPORT_DIR_NAME = "metrics_tables"
+SOLUTIONS_EXPORT_DIR_NAME = "solution_tables"
 # Znaki niedozwolone w nazwach plikow Windows.
 INVALID_FILENAME_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]+')
 
@@ -83,7 +83,7 @@ def metrics_export_path(
     """
     export_dir = Path(project_root) / EXPORT_DIR_NAME
     filename = (
-        f"{safe_filename_part(algorithm_name, 'Algorytm')}_"
+        f"{safe_filename_part(algorithm_name, 'Algorithm')}_"
         f"{safe_filename_part(problem_name, 'Problem')}_"
         f"{timestamp_for_filename(now)}.xlsx"
     )
@@ -105,7 +105,7 @@ def solutions_export_path(
     """
     export_dir = Path(project_root) / SOLUTIONS_EXPORT_DIR_NAME
     filename = (
-        f"{safe_filename_part(algorithm_name, 'Algorytm')}_"
+        f"{safe_filename_part(algorithm_name, 'Algorithm')}_"
         f"{safe_filename_part(problem_name, 'Problem')}_"
         f"{date_for_filename(now)}.xlsx"
     )
@@ -142,9 +142,9 @@ def _safe_sheet_name(value: object) -> str:
     PL:
     Zwraca nazwe arkusza zgodna z ograniczeniami Excela.
     """
-    text = str(value or "").strip() or "Arkusz1"
+    text = str(value or "").strip() or "Sheet1"
     text = re.sub(r"[\[\]:*?/\\]+", "_", text).strip("'")
-    return (text or "Arkusz1")[:31]
+    return (text or "Sheet1")[:31]
 
 
 def _column_name(index: int) -> str:
@@ -234,7 +234,7 @@ def _deduplicate_sheet_names(names: Sequence[object]) -> list[str]:
         while candidate in seen:
             counter += 1
             suffix = f"_{counter}"
-            candidate = f"{base_name[: max(0, 31 - len(suffix))]}{suffix}" or f"Arkusz{counter}"
+            candidate = f"{base_name[: max(0, 31 - len(suffix))]}{suffix}" or f"Sheet{counter}"
         seen[base_name] = counter
         seen[candidate] = 0
         out.append(candidate)
@@ -324,7 +324,7 @@ def write_xlsx_table(
     path: Path,
     headers: Sequence[str],
     rows: Sequence[Sequence[object]],
-    sheet_name: object = "Metryki",
+    sheet_name: object = "Metrics",
 ) -> Path:
     """
     EN:

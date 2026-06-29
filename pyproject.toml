@@ -17,6 +17,11 @@ dependencies = [
   "platypus-opt>=1.4.1",
 ]
 
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+]
+
 [project.scripts]
 pymoo-gui = "pymoo_gui.app:main"
 
@@ -25,3 +30,7 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

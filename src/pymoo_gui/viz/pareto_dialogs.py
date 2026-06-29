@@ -1,17 +1,12 @@
-"""
-EN:
-Qt widgets and dialogs for visualizing Pareto fronts in one, two or three objective dimensions.
-
-PL:
-Zawiera widgety i okna wykresow Pareto, ktore pokazuja postep optymalizacji w GUI.
-"""
+# Qt widgets and dialogs for visualizing Pareto fronts in one, two or three objective dimensions.
+# Provides Pareto widgets and dialogs used to display optimization progress in the GUI.
 
 # ------------------------------------------------------------------------------------
-# File: pareto_dialogs.py
-# Contents: PyQtGraph, Matplotlib and wrapper widgets for 1D, 2D and 3D Pareto-front visualization.
-# What happens here: objective arrays are reduced, cached and rendered as live Pareto plots in Qt widgets.
-# Role in the framework: displays optimization progress and Pareto approximations in dissertation experiments.
-# Author: mgr inż. Kristina Valevska
+# Module: pareto_dialogs.py
+# Summary: PyQtGraph, Matplotlib and wrapper widgets for 1D, 2D and 3D Pareto-front visualization.
+# Implementation: objective arrays are reduced, cached and rendered as live Pareto plots in Qt widgets.
+# Responsibility: displays optimization progress and Pareto approximations in dissertation experiments.
+# Author: Kristina Valevska, MSc Eng.
 # ------------------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -34,13 +29,7 @@ def _compute_stable_limits(
     front_arr: Optional[np.ndarray],
     pop_arr: Optional[np.ndarray],
 ) -> Optional[Tuple[np.ndarray, np.ndarray]]:
-    """
-    EN:
-    Compute stable axis limits from reference, front and population arrays.
-
-    PL:
-    Wyznacza stabilne zakresy osi, aby wykres nie przeskakiwal przy kazdej generacji.
-    """
+    # Compute stable axis limits from reference, front and population arrays.
     use_pf = ref_arr is not None and ref_arr.ndim == 2 and ref_arr.shape[0] >= 2
     if use_pf:
         data = ref_arr
@@ -72,15 +61,7 @@ def _compute_stable_limits(
 
 
 class PyQtGraphParetoDialog(QDialog):
-    """
-    EN:
-    Fast 2D Pareto plot implemented with pyqtgraph.
-
-    PL:
-    Szybki wykres 2D do odswiezania wynikow podczas dzialania algorytmu.
-
-    Szybki live-plot 2D na pyqtgraph.
-    """
+    # Fast 2D Pareto plot implemented with pyqtgraph.
 
     def __init__(
         self,
@@ -88,17 +69,11 @@ class PyQtGraphParetoDialog(QDialog):
         parent=None,
         axis_labels: Optional[Sequence[str]] = None,
         title: Optional[str] = None,
-        point_label: str = "Populacja",
-        front_label: str = "Rozwiązania niezdominowane",
+        point_label: str = "Population",
+        front_label: str = "Nondominated solutions",
         ref_label: str = "Reference PF",
     ):
-        """
-        EN:
-        Initialize a 2D plot with reference, nondominated and population layers.
-
-        PL:
-        Tworzy wykres 2D z warstwa znanego frontu, rozwiazan niezdominowanych i populacji.
-        """
+        # Initialize a 2D plot with reference, nondominated and population layers.
         super().__init__(parent)
         self.setWindowTitle("Live Pareto (2D)")
         self.resize(640, 640)
@@ -171,35 +146,17 @@ class PyQtGraphParetoDialog(QDialog):
         self.plot.enableAutoRange(False)
 
     def set_auto_scale(self, enabled: bool) -> None:
-        """
-        EN:
-        Enable or disable automatic axis-limit initialization.
-
-        PL:
-        Wlacza albo wylacza automatyczne dopasowanie osi.
-        """
+        # Enable or disable automatic axis-limit initialization.
         self._auto_scale = bool(enabled)
 
     def reset_view_limits(self) -> None:
-        """
-        EN:
-        Clear cached fixed limits so the next update can recompute them.
-
-        PL:
-        Czyści zapamietane zakresy osi, aby nastepne dane ustawily widok od nowa.
-        """
+        # Clear cached fixed limits so the next update can recompute them.
         self._limits_initialized = False
         self._fixed_limits = None
         self._reference_signature = None
 
     def _reference_limits_signature(self, ref_arr: Optional[np.ndarray]) -> Optional[Tuple[int, float, float, float, float]]:
-        """
-        EN:
-        Build a compact signature for detecting reference-front changes.
-
-        PL:
-        Tworzy krotki podpis frontu odniesienia, aby wykryc jego zmiane.
-        """
+        # Build a compact signature for detecting reference-front changes.
         if ref_arr is None or ref_arr.ndim != 2 or ref_arr.shape[0] == 0:
             return None
         return (
@@ -211,13 +168,7 @@ class PyQtGraphParetoDialog(QDialog):
         )
 
     def _set_fixed_limits(self, mins: np.ndarray, maxs: np.ndarray) -> None:
-        """
-        EN:
-        Apply fixed x/y ranges to the pyqtgraph plot.
-
-        PL:
-        Ustawia stale zakresy osi X i Y na wykresie.
-        """
+        # Apply fixed x/y ranges to the pyqtgraph plot.
         xmin, xmax = float(mins[0]), float(maxs[0])
         ymin, ymax = float(mins[1]), float(maxs[1])
         self.plot.setXRange(xmin, xmax, padding=0)
@@ -231,13 +182,7 @@ class PyQtGraphParetoDialog(QDialog):
         front_arr: Optional[np.ndarray],
         pop_arr: Optional[np.ndarray],
     ) -> None:
-        """
-        EN:
-        Apply stable limits once per reference context or first data update.
-
-        PL:
-        Ustawia stabilne osie po zmianie frontu odniesienia albo przy pierwszych danych.
-        """
+        # Apply stable limits once per reference context or first data update.
         reference_signature = self._reference_limits_signature(ref_arr)
         if reference_signature is not None and reference_signature != self._reference_signature:
             limits = _compute_stable_limits(ref_arr, None, None)
@@ -257,13 +202,7 @@ class PyQtGraphParetoDialog(QDialog):
         self._reference_signature = reference_signature
 
     def get_axis_limits(self) -> Optional[Tuple[float, float, float, float]]:
-        """
-        EN:
-        Return current 2D axis limits when available.
-
-        PL:
-        Zwraca aktualne zakresy osi wykresu 2D.
-        """
+        # Return current 2D axis limits when available.
         if self._fixed_limits is not None:
             return self._fixed_limits
         try:
@@ -279,34 +218,16 @@ class PyQtGraphParetoDialog(QDialog):
         ref_F: Optional[np.ndarray],
         gen: Optional[int] = None,
     ) -> None:
-        """
-        EN:
-        Update plotted 2D population, nondominated front and reference-front points.
-
-        PL:
-        Odswieza punkty populacji, frontu niezdominowanego i frontu odniesienia na wykresie.
-        """
+        # Update plotted 2D population, nondominated front and reference-front points.
         def _finite_rows(data: Optional[np.ndarray]) -> Optional[np.ndarray]:
-            """
-            EN:
-            Remove rows with non-finite values before plotting.
-
-            PL:
-            Usuwa wiersze z blednymi wartosciami przed rysowaniem.
-            """
+            # Remove rows with non-finite values before plotting.
             if data is None:
                 return None
             mask = np.isfinite(data).all(axis=1)
             return data[mask]
 
         def _as_2d(arr: Optional[np.ndarray]) -> Optional[np.ndarray]:
-            """
-            EN:
-            Reduce an array to finite two-objective plotting coordinates.
-
-            PL:
-            Zamienia dane na dwa wymiary potrzebne do wykresu 2D.
-            """
+            # Reduce an array to finite two-objective plotting coordinates.
             if arr is None:
                 return None
             data = np.asarray(arr)
@@ -343,15 +264,7 @@ class PyQtGraphParetoDialog(QDialog):
 
 
 class MatplotlibParetoDialog(QDialog):
-    """
-    EN:
-    Matplotlib-based Pareto plot supporting 2D and 3D displays.
-
-    PL:
-    Wykres Pareto oparty na Matplotlib, uzywany zwlaszcza dla widoku 3D.
-
-    Live-plot 2D/3D na matplotlib (bardziej uniwersalny, wolniejszy).
-    """
+    # Matplotlib-based Pareto plot supporting 2D and 3D displays.
 
     def __init__(
         self,
@@ -360,17 +273,11 @@ class MatplotlibParetoDialog(QDialog):
         equal_aspect: bool = False,
         axis_labels: Optional[Sequence[str]] = None,
         title: Optional[str] = None,
-        point_label: str = "Populacja",
-        front_label: str = "Rozwiązania niezdominowane",
+        point_label: str = "Population",
+        front_label: str = "Nondominated solutions",
         ref_label: str = "Reference PF",
     ):
-        """
-        EN:
-        Initialize a Matplotlib plot and choose 2D or 3D mode from the reference front.
-
-        PL:
-        Tworzy wykres Matplotlib i wybiera tryb 2D albo 3D na podstawie danych.
-        """
+        # Initialize a Matplotlib plot and choose 2D or 3D mode from the reference front.
         super().__init__(parent)
         self.setWindowTitle("Live Pareto (Matplotlib)")
         self.resize(820, 820)
@@ -448,26 +355,14 @@ class MatplotlibParetoDialog(QDialog):
         self.fig.tight_layout()
 
     def _apply_equal_aspect(self) -> None:
-        """
-        EN:
-        Apply equal axis aspect for comparable visual scale.
-
-        PL:
-        Ustawia rowne proporcje osi, aby odleglosci byly porownywalne wizualnie.
-        """
+        # Apply equal axis aspect for comparable visual scale.
         if self.dim == 2:
             self.ax.set_aspect("equal", adjustable="box")
         else:
             self.ax.set_box_aspect((1.0, 1.0, 1.0))
 
     def reset_view_limits(self) -> None:
-        """
-        EN:
-        Mark axis limits for recomputation on the next update.
-
-        PL:
-        Oznacza zakresy osi do ponownego wyznaczenia przy nastepnym odswiezeniu.
-        """
+        # Mark axis limits for recomputation on the next update.
         self._limits_initialized = False
 
     def update_points(
@@ -477,34 +372,16 @@ class MatplotlibParetoDialog(QDialog):
         ref_F: Optional[np.ndarray],
         gen: Optional[int] = None,
     ) -> None:
-        """
-        EN:
-        Update Matplotlib scatter layers and refresh the canvas.
-
-        PL:
-        Odswieza warstwy punktow na wykresie Matplotlib i przerysowuje plotno.
-        """
+        # Update Matplotlib scatter layers and refresh the canvas.
         def _finite_rows(data: Optional[np.ndarray]) -> Optional[np.ndarray]:
-            """
-            EN:
-            Keep only finite rows for plotting.
-
-            PL:
-            Zostawia tylko wiersze z poprawnymi liczbami.
-            """
+            # Keep only finite rows for plotting.
             if data is None:
                 return None
             mask = np.isfinite(data).all(axis=1)
             return data[mask]
 
         def _as_dim(arr: Optional[np.ndarray]) -> Optional[np.ndarray]:
-            """
-            EN:
-            Reduce an objective matrix to the plot dimensionality.
-
-            PL:
-            Ogranicza dane do liczby wymiarow pokazywanych na wykresie.
-            """
+            # Reduce an objective matrix to the plot dimensionality.
             if arr is None:
                 return None
             data = np.asarray(arr)
@@ -605,23 +482,11 @@ class MatplotlibParetoDialog(QDialog):
         self.canvas.draw_idle()
 
     def set_auto_scale(self, enabled: bool) -> None:
-        """
-        EN:
-        Enable or disable automatic axis scaling.
-
-        PL:
-        Wlacza albo wylacza automatyczne skalowanie osi.
-        """
+        # Enable or disable automatic axis scaling.
         self._auto_scale = bool(enabled)
 
     def get_axis_limits(self) -> Optional[Tuple[float, ...]]:
-        """
-        EN:
-        Return current Matplotlib axis limits.
-
-        PL:
-        Zwraca aktualne zakresy osi wykresu Matplotlib.
-        """
+        # Return current Matplotlib axis limits.
         try:
             xlim = self.ax.get_xlim()
             ylim = self.ax.get_ylim()
@@ -634,15 +499,7 @@ class MatplotlibParetoDialog(QDialog):
 
 
 class OneDParetoDialog(QDialog):
-    """
-    EN:
-    One-objective Pareto plot using point index on the x-axis and objective value on y.
-
-    PL:
-    Wykres dla jednego celu, gdzie os X to numer punktu, a os Y to wartosc celu.
-
-    Prosty wykres 1D: x = indeks punktu, y = f1.
-    """
+    # One-objective Pareto plot using point index on the x-axis and objective value on y.
 
     def __init__(
         self,
@@ -650,17 +507,11 @@ class OneDParetoDialog(QDialog):
         parent=None,
         axis_labels: Optional[Sequence[str]] = None,
         title: Optional[str] = None,
-        point_label: str = "Populacja",
-        front_label: str = "Rozwiązania niezdominowane",
+        point_label: str = "Population",
+        front_label: str = "Nondominated solutions",
         ref_label: str = "Reference PF",
     ):
-        """
-        EN:
-        Initialize a one-dimensional Matplotlib plot.
-
-        PL:
-        Tworzy prosty wykres dla problemu z jedna funkcja celu.
-        """
+        # Initialize a one-dimensional Matplotlib plot.
         super().__init__(parent)
         self.setWindowTitle("Live Pareto (1D)")
         self.resize(820, 600)
@@ -706,33 +557,15 @@ class OneDParetoDialog(QDialog):
         self.fig.tight_layout()
 
     def set_auto_scale(self, enabled: bool) -> None:
-        """
-        EN:
-        Enable or disable y-axis autoscaling.
-
-        PL:
-        Wlacza albo wylacza automatyczne dopasowanie osi Y.
-        """
+        # Enable or disable y-axis autoscaling.
         self._auto_scale = bool(enabled)
 
     def reset_view_limits(self) -> None:
-        """
-        EN:
-        Mark one-dimensional plot limits for recomputation.
-
-        PL:
-        Czyści zapamietane zakresy osi dla wykresu 1D.
-        """
+        # Mark one-dimensional plot limits for recomputation.
         self._limits_initialized = False
 
     def get_axis_limits(self) -> Optional[Tuple[float, float, float, float]]:
-        """
-        EN:
-        Return current 1D plot axis limits.
-
-        PL:
-        Zwraca aktualne zakresy osi wykresu 1D.
-        """
+        # Return current 1D plot axis limits.
         try:
             xlim = self.ax.get_xlim()
             ylim = self.ax.get_ylim()
@@ -747,34 +580,16 @@ class OneDParetoDialog(QDialog):
         ref_F: Optional[np.ndarray],
         gen: Optional[int] = None,
     ) -> None:
-        """
-        EN:
-        Update one-dimensional population, front and reference scatter layers.
-
-        PL:
-        Odswieza punkty populacji, frontu i odniesienia na wykresie 1D.
-        """
+        # Update one-dimensional population, front and reference scatter layers.
         def _finite_rows(data: Optional[np.ndarray]) -> Optional[np.ndarray]:
-            """
-            EN:
-            Keep finite rows before plotting.
-
-            PL:
-            Usuwa wiersze z niepoprawnymi wartosciami.
-            """
+            # Keep finite rows before plotting.
             if data is None:
                 return None
             mask = np.isfinite(data).all(axis=1)
             return data[mask]
 
         def _as_1d(arr: Optional[np.ndarray]) -> Optional[np.ndarray]:
-            """
-            EN:
-            Reduce an array to one objective column.
-
-            PL:
-            Zamienia dane na jedna kolumne celu.
-            """
+            # Reduce an array to one objective column.
             if arr is None:
                 return None
             data = np.asarray(arr)
@@ -868,17 +683,8 @@ class OneDParetoDialog(QDialog):
 
 
 class UnifiedParetoDialog(QDialog):
-    """
-    EN:
-    Dialog wrapper that chooses 1D, 2D or 3D Pareto visualization automatically.
+    # Dialog wrapper that chooses 1D, 2D or 3D Pareto visualization automatically.
 
-    PL:
-    Okno, ktore samo wybiera odpowiedni typ wykresu Pareto dla liczby celow.
-    """
-
-    """
-    Dla 1 celu: 1D. Dla 2 celów: 2D. Dla >=3 celów: 3D (pierwsze trzy cele).
-    """
 
     def __init__(
         self,
@@ -887,13 +693,7 @@ class UnifiedParetoDialog(QDialog):
         equal_aspect: bool = False,
         objective_names: Optional[Sequence[str]] = None,
     ):
-        """
-        EN:
-        Create the concrete plot dialog matching the objective dimensionality.
-
-        PL:
-        Tworzy konkretny wykres dopasowany do liczby funkcji celu.
-        """
+        # Create the concrete plot dialog matching the objective dimensionality.
         super().__init__(parent)
 
         arr = np.asarray(ideal_front) if ideal_front is not None else np.empty((0, 0))
@@ -922,8 +722,8 @@ class UnifiedParetoDialog(QDialog):
                 parent=parent,
                 axis_labels=axis_labels,
                 title="Front Pareto (1D)",
-                front_label="Rozwiązania niezdominowane",
-                ref_label="Znany front Pareto",
+                front_label="Nondominated solutions",
+                ref_label="Known Pareto front",
             )
         elif self.original_dim == 2:
             self.display_indices = (0, 1)
@@ -934,8 +734,8 @@ class UnifiedParetoDialog(QDialog):
                 parent=parent,
                 axis_labels=axis_labels,
                 title="Front Pareto (2D)",
-                front_label="Rozwiązania niezdominowane",
-                ref_label="Znany front Pareto",
+                front_label="Nondominated solutions",
+                ref_label="Known Pareto front",
             )
         else:
             self.display_indices = (0, 1, 2)
@@ -948,39 +748,21 @@ class UnifiedParetoDialog(QDialog):
                 equal_aspect=equal_aspect,
                 axis_labels=axis_labels,
                 title="Front Pareto (3D)" + title_suffix,
-                front_label="Rozwiązania niezdominowane",
-                ref_label="Znany front Pareto",
+                front_label="Nondominated solutions",
+                ref_label="Known Pareto front",
             )
 
     def show(self) -> None:
-        """
-        EN:
-        Show the delegated concrete dialog.
-
-        PL:
-        Pokazuje wewnetrzne okno z wykresem.
-        """
+        # Show the delegated concrete dialog.
         self._dialog.show()
 
     def set_auto_scale(self, enabled: bool) -> None:
-        """
-        EN:
-        Forward auto-scale changes to the concrete plot.
-
-        PL:
-        Przekazuje ustawienie autoskali do wlasciwego wykresu.
-        """
+        # Forward auto-scale changes to the concrete plot.
         if hasattr(self._dialog, "set_auto_scale"):
             self._dialog.set_auto_scale(enabled)
 
     def get_axis_limits(self) -> Optional[Tuple[float, ...]]:
-        """
-        EN:
-        Return axis limits from the concrete plot when supported.
-
-        PL:
-        Zwraca zakresy osi z aktualnego typu wykresu.
-        """
+        # Return axis limits from the concrete plot when supported.
         if hasattr(self._dialog, "get_axis_limits"):
             return self._dialog.get_axis_limits()
         return None
@@ -992,21 +774,9 @@ class UnifiedParetoDialog(QDialog):
         ref_F: Optional[np.ndarray],
         gen: Optional[int] = None,
     ) -> None:
-        """
-        EN:
-        Reduce objective arrays to displayed dimensions and update the concrete plot.
-
-        PL:
-        Wybiera pokazywane wymiary celow i odswieza wlasciwy wykres.
-        """
+        # Reduce objective arrays to displayed dimensions and update the concrete plot.
         def _reduce(arr: Optional[np.ndarray]) -> Optional[np.ndarray]:
-            """
-            EN:
-            Select only the objective columns displayed by this wrapper.
-
-            PL:
-            Wybiera tylko te kolumny celow, ktore sa widoczne na wykresie.
-            """
+            # Select only the objective columns displayed by this wrapper.
             if arr is None:
                 return None
             data = np.asarray(arr)
@@ -1022,89 +792,40 @@ class UnifiedParetoDialog(QDialog):
         self._dialog.update_points(pop, front, ref, gen)
 
     def __getattr__(self, name):
-        """
-        EN:
-        Delegate missing attributes to the concrete dialog.
-
-        PL:
-        Przekazuje brakujace atrybuty do wewnetrznego okna wykresu.
-        """
+        # Delegate missing attributes to the concrete dialog.
         return getattr(self._dialog, name)
 
 
 class PyQtGraphParetoWidget(PyQtGraphParetoDialog):
-    """
-    EN:
-    Embedded QWidget variant of the pyqtgraph 2D Pareto dialog.
-
-    PL:
-    Wersja widgetu 2D, ktora mozna wstawic bezposrednio do glownego okna.
-    """
+    # Embedded QWidget variant of the pyqtgraph 2D Pareto dialog.
 
     def __init__(self, *args, **kwargs):
-        """
-        EN:
-        Initialize the 2D widget and force widget window flags.
-
-        PL:
-        Tworzy widget 2D i ustawia go jako element osadzony w oknie.
-        """
+        # Initialize the 2D widget and force widget window flags.
         super().__init__(*args, **kwargs)
         self.setWindowFlags(Qt.Widget)
 
 
 class MatplotlibParetoWidget(MatplotlibParetoDialog):
-    """
-    EN:
-    Embedded QWidget variant of the Matplotlib Pareto dialog.
-
-    PL:
-    Wersja widgetu Matplotlib osadzana w glownym oknie.
-    """
+    # Embedded QWidget variant of the Matplotlib Pareto dialog.
 
     def __init__(self, *args, **kwargs):
-        """
-        EN:
-        Initialize the Matplotlib widget and force widget window flags.
-
-        PL:
-        Tworzy widget Matplotlib jako element osadzony.
-        """
+        # Initialize the Matplotlib widget and force widget window flags.
         super().__init__(*args, **kwargs)
         self.setWindowFlags(Qt.Widget)
 
 
 class OneDParetoWidget(OneDParetoDialog):
-    """
-    EN:
-    Embedded QWidget variant of the one-dimensional Pareto dialog.
-
-    PL:
-    Wersja widgetu 1D osadzana w glownym oknie.
-    """
+    # Embedded QWidget variant of the one-dimensional Pareto dialog.
 
     def __init__(self, *args, **kwargs):
-        """
-        EN:
-        Initialize the 1D widget and force widget window flags.
-
-        PL:
-        Tworzy widget 1D jako element osadzony.
-        """
+        # Initialize the 1D widget and force widget window flags.
         super().__init__(*args, **kwargs)
         self.setWindowFlags(Qt.Widget)
 
 
 class UnifiedParetoWidget(QWidget):
-    """
-    EN:
-    Widget wrapper for embedded Pareto plots (1D/2D/3D).
-
-    PL:
-    Osadzony wrapper wykresu Pareto, ktory sam wybiera widok 1D, 2D albo 3D.
-
-    Widget wrapper for embedded Pareto plots (1D/2D/3D).
-    """
+    # Widget wrapper for embedded Pareto plots (1D/2D/3D).
+    # Widget wrapper for embedded Pareto plots (1D/2D/3D).
 
     def __init__(
         self,
@@ -1113,13 +834,7 @@ class UnifiedParetoWidget(QWidget):
         equal_aspect: bool = False,
         objective_names: Optional[Sequence[str]] = None,
     ):
-        """
-        EN:
-        Create the embedded concrete plot widget matching the objective dimensionality.
-
-        PL:
-        Tworzy osadzony wykres dopasowany do liczby celow.
-        """
+        # Create the embedded concrete plot widget matching the objective dimensionality.
         super().__init__(parent)
 
         arr = np.asarray(ideal_front) if ideal_front is not None else np.empty((0, 0))
@@ -1148,8 +863,8 @@ class UnifiedParetoWidget(QWidget):
                 parent=self,
                 axis_labels=axis_labels,
                 title="Front Pareto (1D)",
-                front_label="Rozwiązania niezdominowane",
-                ref_label="Znany front Pareto",
+                front_label="Nondominated solutions",
+                ref_label="Known Pareto front",
             )
         elif self.original_dim == 2:
             self.display_indices = (0, 1)
@@ -1160,8 +875,8 @@ class UnifiedParetoWidget(QWidget):
                 parent=self,
                 axis_labels=axis_labels,
                 title="Front Pareto (2D)",
-                front_label="Rozwiązania niezdominowane",
-                ref_label="Znany front Pareto",
+                front_label="Nondominated solutions",
+                ref_label="Known Pareto front",
             )
         else:
             self.display_indices = (0, 1, 2)
@@ -1174,8 +889,8 @@ class UnifiedParetoWidget(QWidget):
                 equal_aspect=equal_aspect,
                 axis_labels=axis_labels,
                 title="Front Pareto (3D)" + title_suffix,
-                front_label="Rozwiązania niezdominowane",
-                ref_label="Znany front Pareto",
+                front_label="Nondominated solutions",
+                ref_label="Known Pareto front",
             )
 
         layout = QVBoxLayout(self)
@@ -1195,24 +910,12 @@ class UnifiedParetoWidget(QWidget):
         )
 
     def set_auto_scale(self, enabled: bool) -> None:
-        """
-        EN:
-        Forward auto-scale changes to the embedded plot widget.
-
-        PL:
-        Przekazuje ustawienie autoskali do osadzonego wykresu.
-        """
+        # Forward auto-scale changes to the embedded plot widget.
         if hasattr(self._dialog, "set_auto_scale"):
             self._dialog.set_auto_scale(enabled)
 
     def set_show_population(self, enabled: bool) -> None:
-        """
-        EN:
-        Toggle whether the full population layer is rendered.
-
-        PL:
-        Wlacza albo ukrywa warstwe calej populacji na wykresie.
-        """
+        # Toggle whether the full population layer is rendered.
         enabled = bool(enabled)
         if self._show_population == enabled:
             return
@@ -1220,25 +923,13 @@ class UnifiedParetoWidget(QWidget):
         self._render_points()
 
     def get_axis_limits(self) -> Optional[Tuple[float, ...]]:
-        """
-        EN:
-        Return current axis limits from the embedded plot.
-
-        PL:
-        Zwraca aktualne zakresy osi z osadzonego wykresu.
-        """
+        # Return current axis limits from the embedded plot.
         if hasattr(self._dialog, "get_axis_limits"):
             return self._dialog.get_axis_limits()
         return None
 
     def _reduce_points(self, arr: Optional[np.ndarray]) -> Optional[np.ndarray]:
-        """
-        EN:
-        Reduce objective data to the columns displayed by the widget.
-
-        PL:
-        Wybiera tylko te kolumny celow, ktore sa pokazywane.
-        """
+        # Reduce objective data to the columns displayed by the widget.
         if arr is None:
             return None
         data = np.asarray(arr)
@@ -1249,13 +940,7 @@ class UnifiedParetoWidget(QWidget):
         return data[:, self.display_indices]
 
     def _snapshot_points(self, arr: Optional[np.ndarray]) -> Optional[np.ndarray]:
-        """
-        EN:
-        Copy plot input data to protect cached state from later mutation.
-
-        PL:
-        Kopiuje dane wykresu, aby pozniejsze zmiany tablic nie psuly widoku.
-        """
+        # Copy plot input data to protect cached state from later mutation.
         if arr is None:
             return None
         try:
@@ -1267,23 +952,11 @@ class UnifiedParetoWidget(QWidget):
         return data if data.ndim == 2 else None
 
     def _shape_of(self, arr: Optional[np.ndarray]) -> Optional[Tuple[int, ...]]:
-        """
-        EN:
-        Return an array shape tuple for diagnostics.
-
-        PL:
-        Zwraca rozmiar tablicy do diagnostyki.
-        """
+        # Return an array shape tuple for diagnostics.
         return tuple(arr.shape) if arr is not None else None
 
     def _render_points(self) -> None:
-        """
-        EN:
-        Render cached population, nondominated and reference points in the embedded plot.
-
-        PL:
-        Rysuje zapamietane punkty populacji, frontu i odniesienia.
-        """
+        # Render cached population, nondominated and reference points in the embedded plot.
         pop = self._reduce_points(self._last_pop_F) if self._show_population else None
         if not self._show_population:
             pop = np.empty((0, len(self.display_indices)))
@@ -1295,13 +968,7 @@ class UnifiedParetoWidget(QWidget):
         self._last_rendered_shapes = (self._shape_of(pop), self._shape_of(front), self._shape_of(ref))
 
     def render_snapshot(self) -> dict:
-        """
-        EN:
-        Return diagnostic information about the last rendered plot state.
-
-        PL:
-        Zwraca informacje diagnostyczne o ostatnio narysowanym stanie wykresu.
-        """
+        # Return diagnostic information about the last rendered plot state.
         return {
             "gen": self._last_rendered_gen,
             "pop_shape": self._last_rendered_shapes[0],
@@ -1317,13 +984,7 @@ class UnifiedParetoWidget(QWidget):
         ref_F: Optional[np.ndarray],
         gen: Optional[int] = None,
     ) -> None:
-        """
-        EN:
-        Cache new plot data and render it through the selected embedded widget.
-
-        PL:
-        Zapamietuje nowe dane i odswieza odpowiedni wykres.
-        """
+        # Cache new plot data and render it through the selected embedded widget.
         self._last_pop_F = self._snapshot_points(pop_F)
         self._last_front_F = self._snapshot_points(front_F)
         self._last_ref_F = self._snapshot_points(ref_F)
@@ -1331,11 +992,5 @@ class UnifiedParetoWidget(QWidget):
         self._render_points()
 
     def __getattr__(self, name):
-        """
-        EN:
-        Delegate missing attributes to the embedded concrete plot.
-
-        PL:
-        Przekazuje brakujace atrybuty do osadzonego wykresu.
-        """
+        # Delegate missing attributes to the embedded concrete plot.
         return getattr(self._dialog, name)

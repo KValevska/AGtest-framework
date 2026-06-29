@@ -1,13 +1,11 @@
-﻿"""
-EN: PyQt5 desktop application for configuring, running, visualizing and exporting multiobjective optimization experiments.
-"""
+# PyQt5 desktop application for configuring, running, visualizing and exporting multiobjective optimization experiments.
 
 # ------------------------------------------------------------------------------------
-# File: app.py
-# Contents: PyQt5 main window, dynamic parameter forms, optimization worker, plotting and metrics UI logic.
-# What happens here: user-selected problems and algorithms are configured, executed in a thread, visualized and exported.
-# Role in the framework: provides the interactive desktop interface for dissertation optimization experiments.
-# Author: mgr inż. Kristina Valevska
+# Module: app.py
+# Summary: PyQt5 main window, dynamic parameter forms, optimization worker, plotting and metrics UI logic.
+# Implementation: user-selected problems and algorithms are configured, executed in a thread, visualized and exported.
+# Responsibility: provides the interactive desktop interface for dissertation optimization experiments.
+# Author: Kristina Valevska, MSc Eng.
 # ------------------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -56,69 +54,33 @@ try:
     from pymoo.core.termination import NoTermination
 except Exception:
     class NoTermination:  # type: ignore[override]
-        """
-        EN:
-        Compatibility fallback for pymoo versions without `NoTermination`.
-
-        PL:
-        Zastepcza klasa uzywana wtedy, gdy dana wersja pymoo nie ma trybu bez
-        limitu generacji.
-        """
+        # Compatibility fallback for pymoo versions without `NoTermination`.
 
         def __init__(self):
-            """
-            EN:
-            Initialize the fallback termination state.
-
-            PL:
-            Ustawia poczatkowy stan sztucznego warunku stopu.
-            """
-            # Ten fallback udaje brak warunku stopu, gdy pymoo nie dostarcza klasy.
+            # Initialize the fallback termination state.
             self.force_termination = False
             self.perc = 0.0
 
         def update(self, algorithm):
-            """
-            EN:
-            Update fallback progress from the forced-termination flag.
-
-            PL:
-            Aktualizuje postep na podstawie informacji, czy wymuszono zatrzymanie.
-            """
-            # Zwraca postep tylko na potrzeby zgodnosci z interfejsem termination.
+            # Update fallback progress from the forced-termination flag.
             self.perc = 1.0 if self.force_termination else 0.0
             return self.perc
 
         def has_terminated(self):
-            """
-            EN:
-            Report whether the fallback termination has completed.
-
-            PL:
-            Informuje, czy algorytm ma juz zakonczyc prace.
-            """
-            # Informuje algorytm, czy praca ma byc zakonczona.
+            # Report whether the fallback termination has completed.
             return self.perc >= 1.0
 
         def do_continue(self):
-            """
-            EN:
-            Return whether optimization should continue.
-
-            PL:
-            Zwraca informacje, czy algorytm ma dalej dzialac.
-            """
-            # Odwrotnosc `has_terminated`, potrzebna w niektorych wersjach API.
+            # Return whether optimization should continue.
             return not self.has_terminated()
 
-# Pozwala odpalic ten plik bez `python -m`, np. bezposrednio z IDE.
 if __package__ in (None, ""):
     _src_root = Path(__file__).resolve().parents[1]
     if str(_src_root) not in sys.path:
         sys.path.insert(0, str(_src_root))
     __package__ = "pymoo_gui"
 
-from .algoritms import ALGORITHMS, known_pareto_front, make_generation_callback, minimize
+from .algorithms import ALGORITHMS, known_pareto_front, make_generation_callback, minimize
 from .metrics import (
     METRIC_DISPLAY_ORDER,
     METRIC_LABELS,
@@ -133,12 +95,10 @@ from .parallel import make_parallel_problem
 from .problems import PROBLEMS
 from .viz.pareto_dialogs import UnifiedParetoWidget
 
-DEBUG = False
 EMPTY = inspect.Signature.empty
-ND_SAVE_EVERY_EPOCH = "every_epoch"
+ND_SAVE_LAST_EPOCH = "last_epoch"
 ND_SAVE_EVERY_N_EPOCHS = "every_n_epochs"
 ND_SAVE_CASCADE = "cascade"
-# GUI pokazuje bardziej czytelne etykiety.
 PARAM_PL = {
     "n_var": "Liczba zmiennych",
     "n_obj": "Liczba funkcji celu",
@@ -151,39 +111,48 @@ PARAM_PL = {
     "n_partitions": "Liczba partycji",
     "n_neighbors": "Liczba sąsiadów",
     "prob_neighbor_mating": "Prawdopodobieństwo kojarzenia sąsiadów",
-    "neighborhood_size": "Rozmiar sasiedztwa",
+    "neighborhood_size": "Rozmiar sąsiedztwa",
     "epsilons": "Epsilony",
     "ref_points": "Punkty odniesienia",
     "pop_per_ref_point": "Populacja na punkt odniesienia",
     "mu": "Parametr mu",
-    "references": "Liczba probek HV",
-    "n_samples": "Liczba probek MC",
+    "references": "Liczba próbek HV",
+    "n_samples": "Liczba próbek MC",
     "reference_point": "Punkt referencyjny",
-    "reference_set": "Zbior referencyjny",
-    "mutation_rate": "Wspolczynnik mutacji",
+    "reference_set": "Zbiór referencyjny",
+    "kappa": "Parametr kappa",
+    "f_weight": "Waga F",
+    "guiding_vector_count": "Liczba wektorów kierujących",
+    "samples_per_direction": "Próbki na kierunek",
+    "selection_threshold_ratio": "Próg selekcji",
+    "mutation_rate": "Współczynnik mutacji",
     "eta": "Parametr eta",
     "alpha": "Parametr alpha",
-    "adapt_freq": "Czestotliwosc adaptacji",
-    "parallel_eval": "Ewaluacja rownolegla",
-    "parallel_workers": "Liczba workerow",
-    "parallel_backend": "Backend rownolegly",
+    "adapt_freq": "Częstotliwość adaptacji",
+    "parallel_eval": "Ewaluacja równoległa",
+    "parallel_workers": "Liczba workerów",
+    "parallel_backend": "Backend równoległy",
 }
 DEFAULT_PARALLEL_WORKERS = max(1, min(4, os.cpu_count() or 1))
 RUN_FORM_FIELDS = {
     "seed": {"default": 1, "kind": "int", "minimum": 0},
     "n_gen": {"default": 10, "kind": "int", "minimum": 1},
-    "ran": {"default": False, "kind": "bool", "tooltip": "Brak limitu generacji z GUI. Przebieg zatrzymasz przyciskiem Stop."},
+    "ran": {
+        "default": False,
+        "kind": "bool",
+        "tooltip": "Brak limitu generacji z GUI. Przebieg zatrzymasz przyciskiem Stop.",
+    },
     "verbose": {"default": True, "kind": "bool"},
     "parallel_eval": {
         "default": False,
         "kind": "bool",
-        "tooltip": "Rownolegla ewaluacja osobnikow na CPU. Najbardziej przydatna dla drogich funkcji celu.",
+        "tooltip": "Równoległa ewaluacja osobników na CPU. Najbardziej przydatna dla drogich funkcji celu.",
     },
     "parallel_workers": {
         "default": DEFAULT_PARALLEL_WORKERS,
         "kind": "int",
         "minimum": 1,
-        "tooltip": "Liczba procesow albo watkow uzywanych do ewaluacji funkcji celu.",
+        "tooltip": "Liczba procesów albo wątków używanych do ewaluacji funkcji celu.",
     },
     "parallel_backend": {
         "default": "process",
@@ -193,40 +162,162 @@ RUN_FORM_FIELDS = {
     },
 }
 
+PARAM_PL.update(
+    {
+        "n_var": "Number of variables",
+        "n_obj": "Number of objectives",
+        "seed": "Random seed",
+        "verbose": "Verbose mode",
+        "n_gen": "Number of generations",
+        "pop_size": "Population size",
+        "population_size": "Population size",
+        "n_partitions": "Number of partitions",
+        "n_neighbors": "Number of neighbors",
+        "prob_neighbor_mating": "Neighbor mating probability",
+        "neighborhood_size": "Neighborhood size",
+        "epsilons": "Epsilons",
+        "ref_points": "Reference points",
+        "pop_per_ref_point": "Population per reference point",
+        "mu": "Mu parameter",
+        "references": "Number of HV samples",
+        "n_samples": "Number of MC samples",
+        "reference_point": "Reference point",
+        "reference_set": "Reference set",
+        "kappa": "Kappa parameter",
+        "f_weight": "F weight",
+        "guiding_vector_count": "Number of guiding vectors",
+        "samples_per_direction": "Samples per direction",
+        "selection_threshold_ratio": "Selection threshold",
+        "mutation_rate": "Mutation rate",
+        "eta": "Eta parameter",
+        "alpha": "Alpha parameter",
+        "adapt_freq": "Adaptation frequency",
+        "parallel_eval": "Parallel evaluation",
+        "parallel_workers": "Number of workers",
+        "parallel_backend": "Parallel backend",
+    }
+)
+RUN_FORM_FIELDS["ran"]["tooltip"] = "No generation limit is enforced by the GUI. Stop the run with the Stop button."
+RUN_FORM_FIELDS["parallel_eval"]["tooltip"] = (
+    "Evaluate individuals in parallel on the CPU. Most useful for expensive objective functions."
+)
+RUN_FORM_FIELDS["parallel_workers"]["tooltip"] = (
+    "Number of processes or threads used to evaluate objective functions."
+)
+RUN_FORM_FIELDS["parallel_backend"]["tooltip"] = (
+    "process = multiprocessing; thread = ThreadPool with lower overhead."
+)
+
+UI_TEXT_REPLACEMENTS = {
+    "Brak wykresu - uruchom optymalizacjÄ™": "No plot available. Start an optimization run.",
+    "RÄ™czny ref point": "Manual ref point",
+    "HV ref point (aktywny): -": "HV ref point (active): -",
+    "Aktualizuj wykres w trakcie": "Update plot during run",
+    "PokaĹĽ populacjÄ™": "Show population",
+    "Zapis rozwiÄ…zaĹ„ niezdominowanych": "Nondominated solution export",
+    "Konsola": "Console",
+    "Ukryj konsole": "Hide console",
+    "Pokaz konsole": "Show console",
+    "Status: bezczynny": "Status: idle",
+    "Tryb zapisu rozwiÄ…zaĹ„ niezdominowanych jest niepoprawny.": "Invalid nondominated-solution export mode.",
+    "Nie moĹĽna przygotowaÄ‡ podglÄ…du Pareto.": "Unable to prepare the Pareto preview.",
+    "Podaj ref_point albo wybierz tryb Auto.": "Enter a ref_point or switch to Auto mode.",
+    "Start: uruchomienie juĹĽ trwa.": "Start: a run is already in progress.",
+    "BĹ‚Ä™dny ref point": "Invalid ref point",
+    "Niepoprawny ref_point.": "Invalid ref_point.",
+    "HV ref_point: start zablokowany.": "HV ref_point: start blocked.",
+    "Brak konfiguracji": "Missing configuration",
+    "Wybierz problem i algorytm przed uruchomieniem.": "Select a problem and an algorithm before starting the run.",
+    "Start: brak wybranego problemu lub algorytmu.": "Start: no problem or algorithm is selected.",
+    "BĹ‚Ä™dne dane wejĹ›ciowe": "Invalid input data",
+    "BĹ‚Ä™dne ustawienia zapisu": "Invalid export settings",
+    "BĹ‚Ä™dne dane algorytmu": "Invalid algorithm data",
+    "BĹ‚Ä™dne dane problemu": "Invalid problem data",
+    "dziaĹ‚a": "running",
+    "zakoĹ„czono": "completed",
+    "zatrzymano": "stopped",
+    "bĹ‚Ä…d": "error",
+    "Stop: brak aktywnego uruchomienia.": "Stop: no active run.",
+    "Status: zatrzymywanie": "Status: stopping",
+    "Stop: wysĹ‚ano zadanie zatrzymania; oczekiwanie na zakoĹ„czenie bieĹĽÄ…cej generacji.": (
+        "Stop: cancellation requested; waiting for the current generation to finish."
+    ),
+    "BĹ‚Ä…d optymalizacji": "Optimization error",
+    "Eksport metryk pominiÄ™ty: tabela historii jest pusta.": "Metrics export skipped: the history table is empty.",
+    "RozwiÄ…zania": "Solutions",
+}
+
+
+def translate_ui_text(text: Any) -> str:
+    # Translate user-visible GUI text to English.
+    out = "" if text is None else str(text)
+    out = UI_TEXT_REPLACEMENTS.get(out, out)
+    replacements = (
+        ("WĹ‚Ä…cza odĹ›wieĹĽanie wykresu Pareto w trakcie kolejnych generacji.", "Refresh the Pareto plot after each generation."),
+        ("Pokazuje lub ukrywa peĹ‚nÄ… populacjÄ™ na wykresie Pareto.", "Show or hide the full population in the Pareto plot."),
+        (
+            "Ukrywa znany front Pareto, ale nie usuwa go z danych uĹĽywanych przez metryki.",
+            "Hide the known Pareto front without removing it from the data used by the metrics.",
+        ),
+        (
+            "Jednorazowo dopasowuje zakres osi dla aktualnego widoku Pareto, bez przeliczania przy kaĹĽdej generacji.",
+            "Fit the axis ranges for the current Pareto view without recomputing them on every generation.",
+        ),
+        ("Wybiera, dla ktĂłrych epok zapisywaÄ‡ front niezdominowany.", "Choose for which epochs the nondominated front should be saved."),
+        ("Dodatnia liczba caĹ‚kowita uĹĽywana tylko w trybie 'Co N epok'.", "Positive integer used only in the 'Every N epochs' mode."),
+        ("show_population={checked} (pelna populacja jako osobna warstwa)", "show_population={checked} (full population as a separate layer)"),
+        ("Dla liczb z przecinkiem oddziel wymiary spacjÄ… lub ';', np. '0,6 0,7'.", "For decimal commas, separate dimensions with spaces or ';', e.g. '0,6 0,7'."),
+        ("HV ref point (aktywny): INVALID", "HV ref point (active): INVALID"),
+        ("HV ref point (aktywny): [", "HV ref point (active): ["),
+        ("PodglÄ…d Pareto niedostÄ™pny dla ", "Pareto preview is unavailable for "),
+        (" celĂłw. Gen=", " objectives. Gen="),
+        ("Eksport metryk nie powiĂłdĹ‚ siÄ™: ", "Metrics export failed: "),
+        ("Eksport metryk zapisany: ", "Metrics export saved: "),
+        ("Epoka ", "Epoch "),
+        ("Eksport punktĂłw niezdominowanych nie powiĂłdĹ‚ siÄ™: ", "Nondominated-point export failed: "),
+        ("Eksport punktĂłw niezdominowanych nie utworzyĹ‚ pliku: ", "Nondominated-point export did not create a file: "),
+        ("Utworzony plik Excel z punktami niezdominowanymi: ", "Created Excel file with nondominated points: "),
+        ("Liczba zapisanych punktĂłw: ", "Number of saved points: "),
+        ("Dane pochodzÄ… z uruchomienia: ", "Data source run: "),
+        ("Eksport punktĂłw niezdominowanych dla epoki ", "Nondominated-point export for epoch "),
+        (" nie powiĂłdĹ‚ siÄ™: ", " failed: "),
+        ("Zapisano punkty niezdominowane w arkuszu dla epoki ", "Saved nondominated points in the worksheet for epoch "),
+        ("Eksport punktĂłw niezdominowanych dla ostatniej epoki ", "Nondominated-point export for the final epoch "),
+        ("Zapisano punkty niezdominowane dla ostatniej epoki ", "Saved nondominated points for the final epoch "),
+        (": brak poprawnej liczby caĹ‚kowitej.", ": invalid integer value."),
+        (": wartoĹ›Ä‡ musi byÄ‡ >= ", ": value must be >= "),
+        ("Liczba generacji", "Number of generations"),
+        ("Liczba workerĂłw", "Number of workers"),
+        ("Backend rĂłwnolegĹ‚y: nieobsĹ‚ugiwana wartoĹ›Ä‡ ", "Parallel backend: unsupported value "),
+        ("Rozmiar populacji", "Population size"),
+        ("ref_point ma dĹ‚ugoĹ›Ä‡ ", "ref_point has length "),
+        (", oczekiwano M=", "; expected M="),
+        ("Nie moĹĽna odczytaÄ‡ liczby '", "Unable to parse the number '"),
+        ("'. UĹĽyj np. '0,6 0,7' albo '0.6,0.7'.", "'. Use, for example, '0,6 0,7' or '0.6,0.7'."),
+        ("Brak poprawnego factory problemu.", "No valid problem factory is available."),
+    )
+    for source, target in replacements:
+        out = out.replace(source, target)
+    out = re.sub(
+        r"PodglÄ…d Pareto jest dostÄ™pny tylko dla 2 lub 3 celĂłw\. Wybrany problem ma ([^.]*)\.",
+        r"Pareto preview is available only for 2 or 3 objectives. The selected problem has \1.",
+        out,
+    )
+    return out
+
 
 def pl_param_label(name: str) -> str:
-    """
-    EN:
-    Return a Polish GUI label for a technical parameter name.
-
-    PL:
-    Zamienia techniczna nazwe parametru na zrozumiala etykiete w formularzu.
-    """
-    # Zamienia techniczna nazwe parametru na tekst czytelny w formularzu.
+    # Return a GUI label for a technical parameter name.
     return PARAM_PL.get(name) or f"{name.replace('_', ' ').capitalize()} ({name})"
 
 
 def callable_signature(obj: Any) -> inspect.Signature:
-    """
-    EN:
-    Return the callable signature used to build dynamic parameter forms.
-
-    PL:
-    Pobiera liste parametrow funkcji lub konstruktora, aby zbudowac formularz.
-    """
-    # Pobiera sygnature callable, aby dynamicznie zbudowac pola GUI.
+    # Return the callable signature used to build dynamic parameter forms.
     return inspect.signature(obj)
 
 
 def filter_callable_kwargs(fn: Any, params: Mapping[str, Any]) -> Dict[str, Any]:
-    """
-    EN:
-    Keep only keyword arguments accepted by a callable's signature.
-
-    PL:
-    Przepuszcza tylko te ustawienia, ktore dana funkcja naprawde przyjmuje.
-    """
-    # Przepuszcza tylko te argumenty, ktore dana funkcja naprawde przyjmuje.
+    # Keep only keyword arguments accepted by a callable's signature.
     sig = callable_signature(fn)
     accepted = {}
     for param in sig.parameters.values():
@@ -238,15 +329,7 @@ def filter_callable_kwargs(fn: Any, params: Mapping[str, Any]) -> Dict[str, Any]
 
 
 def _literal_or_str(value: str) -> Any:
-    """
-    EN:
-    Parse GUI text as a Python literal when possible, otherwise keep it as text.
-
-    PL:
-    Odczytuje tekst z formularza jako liczbe, liste lub `None`, a gdy sie nie da,
-    zostawia zwykly tekst.
-    """
-    # Probuje odczytac wpis jako litarl Pythona, a przy niepowodzeniu zostawia zwykly tekst.
+    # Parse GUI text as a Python literal when possible, otherwise keep it as text.
     text = value.strip()
     if not text:
         return None
@@ -256,22 +339,16 @@ def _literal_or_str(value: str) -> Any:
         return text
 
 
-def should_save_nondominated_solutions_for_epoch(epoch: Any, mode: str, step: int = 1) -> bool:
-    """
-    EN:
-    Decide whether nondominated solutions should be exported for a given epoch.
-
-    PL:
-    Okresla, czy dla danej epoki nalezy zapisac front niezdominowany.
-    """
+def should_save_nondominated_solutions_for_epoch(epoch: Any, mode: str, step: int = 1, *, is_final: bool = False) -> bool:
+    # Decide whether nondominated solutions should be exported for a given epoch.
     try:
         epoch_number = int(epoch)
     except (TypeError, ValueError):
         return False
     if epoch_number < 1:
         return False
-    if mode == ND_SAVE_EVERY_EPOCH:
-        return True
+    if mode in {ND_SAVE_LAST_EPOCH, "every_epoch"}:
+        return bool(is_final)
     if mode == ND_SAVE_EVERY_N_EPOCHS:
         return epoch_number == 1 or (step >= 1 and epoch_number % step == 0)
     if mode == ND_SAVE_CASCADE:
@@ -286,13 +363,7 @@ def should_save_nondominated_solutions_for_epoch(epoch: Any, mode: str, step: in
 
 @dataclass(frozen=True)
 class FieldSpec:
-    """
-    EN:
-    Declarative description of one dynamic form field.
-
-    PL:
-    Opis jednego pola formularza: nazwy, typu, wartosci domyslnej i ograniczen.
-    """
+    # Declarative description of one dynamic form field.
 
     name: str
     default: Any = None
@@ -306,13 +377,7 @@ class FieldSpec:
 
 @dataclass
 class WidgetBinding:
-    """
-    EN:
-    Binding between a form field specification and the created Qt widget.
-
-    PL:
-    Laczy opis pola z konkretnym widgetem w oknie.
-    """
+    # Binding between a form field specification and the created Qt widget.
 
     name: str
     widget: Any
@@ -321,14 +386,7 @@ class WidgetBinding:
 
 
 def _specs(raw_specs: Optional[Any]) -> list[FieldSpec]:
-    """
-    EN:
-    Normalize registry form-field definitions into `FieldSpec` objects.
-
-    PL:
-    Zamienia rozne formaty opisow pol na jedna wspolna postac uzywana przez GUI.
-    """
-    # Rozne moduly moga opisac pola na kilka sposobow, wiec tutaj ujednolicamy wejscie.
+    # Normalize registry form-field definitions into `FieldSpec` objects.
     if not raw_specs:
         return []
     out = []
@@ -361,23 +419,10 @@ def _specs(raw_specs: Optional[Any]) -> list[FieldSpec]:
 
 
 class ParamForm(QGroupBox):
-    """
-    EN:
-    Dynamic Qt form that builds parameter widgets from callable signatures or field specs.
-
-    PL:
-    Formularz, ktory sam tworzy pola ustawien dla problemu, algorytmu albo uruchomienia.
-    """
+    # Dynamic Qt form that builds parameter widgets from signatures or field specs.
 
     def __init__(self, title: str, parent=None):
-        """
-        EN:
-        Initialize an empty parameter form.
-
-        PL:
-        Tworzy pusty formularz, ktory pozniej zostanie wypelniony polami.
-        """
-        # Tworzy pusty formularz, ktory potem wypelniamy polami z opisu problemu lub algorytmu.
+        # Initialize an empty parameter form.
         super().__init__(title, parent)
         self.form = QFormLayout(self)
         self.form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
@@ -386,63 +431,27 @@ class ParamForm(QGroupBox):
         self._bindings: Dict[str, WidgetBinding] = {}
 
     def clear(self) -> None:
-        """
-        EN:
-        Remove all rows and widget bindings from the form.
-
-        PL:
-        Czyści formularz przed zbudowaniem nowej listy pol.
-        """
-        # Usuwa wszystkie wiersze i powiazania przed zbudowaniem nowej wersji formularza.
+        # Remove all rows and widget bindings from the form.
         while self.form.rowCount():
             self.form.removeRow(0)
         self._bindings.clear()
 
     def binding(self, name: str) -> Optional[WidgetBinding]:
-        """
-        EN:
-        Return the binding for one field name.
-
-        PL:
-        Zwraca widget przypisany do podanej nazwy pola.
-        """
-        # Zwraca pojedyncze powiazanie nazwy pola z widgetem.
+        # Return the binding for one field name.
         return self._bindings.get(name)
 
     def bindings(self) -> Sequence[WidgetBinding]:
-        """
-        EN:
-        Return all field-to-widget bindings.
-
-        PL:
-        Zwraca wszystkie pola formularza wraz z ich widgetami.
-        """
-        # Zwraca wszystkie powiazania, aby latwo podpinac sygnaly.
+        # Return all field-to-widget bindings.
         return tuple(self._bindings.values())
 
     def build_for_callable(self, fn: Any, extra_fields: Optional[Any] = None) -> None:
-        """
-        EN:
-        Build form fields from a callable signature and optional explicit field specs.
-
-        PL:
-        Tworzy pola formularza na podstawie parametrow funkcji oraz dodatkowych opisow.
-        """
-        # Buduje formularz na podstawie sygnatury funkcji lub konstruktora.
+        # Build form fields from a callable signature and explicit field specs.
         self.build_for_signature(callable_signature(fn), extra_fields)
 
     def build_for_signature(self, sig: inspect.Signature, extra_fields: Optional[Any] = None) -> None:
-        """
-        EN:
-        Build form fields from an inspected signature.
-
-        PL:
-        Buduje formularz z gotowej sygnatury parametrow.
-        """
-        # Laczy pola wymuszone recznie z tymi odczytanymi z podpisu callable.
+        # Build form fields from an inspected signature.
         self.clear()
         added_names = set()
-        # Pola przekazane recznie maja pierwszenstwo przed tymi odczytanymi z sygnatury.
         for spec in _specs(extra_fields):
             self._add_field(spec)
             added_names.add(spec.name)
@@ -455,27 +464,13 @@ class ParamForm(QGroupBox):
             self._add_field(FieldSpec(param.name, default, self._kind(param.annotation, default)))
 
     def build_from_specs(self, raw_specs: Optional[Any]) -> None:
-        """
-        EN:
-        Build form fields directly from registry field specifications.
-
-        PL:
-        Tworzy formularz wprost z opisow pol zapisanych w rejestrze.
-        """
-        # Buduje formularz wprost z listy lub slownika opisow pol.
+        # Build form fields directly from registry field specifications.
         self.clear()
         for spec in _specs(raw_specs):
             self._add_field(spec)
 
     def _kind(self, annotation: Any, default: Any) -> str:
-        """
-        EN:
-        Infer the widget kind from type annotation or default value.
-
-        PL:
-        Dobiera typ pola formularza na podstawie typu albo wartosci domyslnej.
-        """
-        # Zgaduje typ widgetu na podstawie adnotacji lub wartosci domyslnej.
+        # Infer the widget kind from type annotation or default value.
         if annotation in (bool, "bool") or isinstance(default, bool):
             return "bool"
         if annotation in (int, "int") or isinstance(default, int):
@@ -487,19 +482,17 @@ class ParamForm(QGroupBox):
         return "any"
 
     def _bounds(self, spec: FieldSpec) -> Tuple[float, float]:
-        """
-        EN:
-        Determine numeric widget bounds from a field specification.
-
-        PL:
-        Ustala minimalna i maksymalna wartosc dla pola liczbowego.
-        """
-        # Ustala sensowne granice dla spinboxow, gdy spec ich nie podal.
+        # Determine numeric widget bounds from a field specification.
         minimum = spec.minimum
         maximum = spec.maximum
         if spec.kind == "int":
             if minimum is None:
-                minimum = 1 if spec.name in {"n_gen", "pop_size", "n_var", "n_obj"} else 0 if spec.name == "seed" else -10**9
+                if spec.name in {"n_gen", "pop_size", "n_var", "n_obj"}:
+                    minimum = 1
+                elif spec.name == "seed":
+                    minimum = 0
+                else:
+                    minimum = -10**9
             if maximum is None:
                 maximum = 10**9
         else:
@@ -508,14 +501,7 @@ class ParamForm(QGroupBox):
         return float(minimum), float(maximum)
 
     def _apply_read_only(self, widget: Any, spec: FieldSpec) -> None:
-        """
-        EN:
-        Apply a read-only state to a widget according to the field spec.
-
-        PL:
-        Ustawia pole jako tylko do odczytu, gdy opis pola tego wymaga.
-        """
-        # Ustawia widget w trybie tylko do odczytu.
+        # Apply a read-only state to a widget according to the field spec.
         if not spec.read_only:
             return
         if isinstance(widget, (QSpinBox, QDoubleSpinBox)):
@@ -528,16 +514,10 @@ class ParamForm(QGroupBox):
             widget.setEnabled(False)
 
     def _add_field(self, spec: FieldSpec) -> None:
-        """
-        EN:
-        Create one Qt widget for a field specification and add it to the form.
-
-        PL:
-        Tworzy jedno pole w formularzu i zapamietuje jego powiazanie z nazwa.
-        """
+        # Create one Qt widget for a field specification and add it to the form.
         label = QLabel(pl_param_label(spec.name))
         if spec.tooltip:
-            label.setToolTip(spec.tooltip)
+            label.setToolTip(translate_ui_text(spec.tooltip))
         if spec.kind == "choice" or spec.choices:
             widget = QComboBox()
             for choice in spec.choices or ():
@@ -570,19 +550,13 @@ class ParamForm(QGroupBox):
                 widget.setPlaceholderText("None")
             kind = spec.kind
         if spec.tooltip:
-            widget.setToolTip(spec.tooltip)
+            widget.setToolTip(translate_ui_text(spec.tooltip))
         self._apply_read_only(widget, spec)
         self.form.addRow(label, widget)
         self._bindings[spec.name] = WidgetBinding(spec.name, widget, kind, spec)
 
     def values(self) -> Dict[str, Any]:
-        """
-        EN:
-        Read all form widget values and convert them to Python objects.
-
-        PL:
-        Pobiera wartosci z formularza i zamienia je na dane gotowe do przekazania funkcjom.
-        """
+        # Read all form widget values and convert them to Python objects.
         out: Dict[str, Any] = {}
         for name, binding in self._bindings.items():
             widget = binding.widget
@@ -602,27 +576,14 @@ class ParamForm(QGroupBox):
         return out
 
 class OptimizationCancelled(Exception):
-    """
-    EN:
-    Internal control-flow exception raised when a running optimization is cancelled.
-
-    PL:
-    Wewnetrzny sygnal przerwania obliczen po kliknieciu Stop.
-    """
+    # Signal cooperative cancellation of an optimization run.
 
     pass
 
 
 class OptimizationWorker(QThread):
-    """
-    EN:
-    Background worker that builds the selected problem and algorithm, runs optimization, and emits GUI updates.
+    # Run optimization in the background and emit payloads back to the GUI.
 
-    PL:
-    Watek roboczy, ktory wykonuje obliczenia w tle i wysyla do okna postep oraz wynik.
-    """
-
-    # Obliczenia ida w osobnym watku, zeby GUI pozostalo dostepne podczas optymalizacji.
     generation = pyqtSignal(object)
     done = pyqtSignal(dict)
     cancelled = pyqtSignal(dict)
@@ -643,15 +604,7 @@ class OptimizationWorker(QThread):
         parallel_backend: str = "process",
         parent=None,
     ):
-        """
-        EN:
-        Store all configuration needed for one optimization run.
-
-        PL:
-        Zapamietuje ustawienia jednego przebiegu: problem, algorytm, seed, limit
-        generacji, HV i rownolegla ewaluacje.
-        """
-        # Zapamietuje konfiguracje jednego uruchomienia, ktore wykona w tle.
+        # Store all configuration needed for one optimization run.
         super().__init__(parent)
         self._problem_key = str(problem_key)
         self._alg_key = str(alg_key)
@@ -668,59 +621,25 @@ class OptimizationWorker(QThread):
         self._cancel_requested = threading.Event()
 
     def request_cancel(self) -> None:
-        """
-        EN:
-        Request cooperative cancellation of the running optimization.
-
-        PL:
-        Prosi dzialajacy algorytm o zatrzymanie przy najblizszej bezpiecznej okazji.
-        """
-        # Ustawia flage stopu i prosi Qt o przerwanie pracy watku.
+        # Request cooperative cancellation of the running optimization.
         self._cancel_requested.set()
         self.requestInterruption()
 
     def _cancel_pending(self) -> bool:
-        """
-        EN:
-        Check whether the worker has received a cancellation request.
-
-        PL:
-        Sprawdza, czy uzytkownik poprosil o zatrzymanie obliczen.
-        """
-        # Sprawdza  mechanizm stopu, zeby szybciej wyjsc z obliczen.
+        # Return whether the worker has received a cancellation request.
         return self._cancel_requested.is_set() or self.isInterruptionRequested()
 
     def _emit_generation(self, payload: dict) -> None:
-        """
-        EN:
-        Emit one generation payload unless cancellation is pending.
-
-        PL:
-        Wysyla dane jednej generacji do GUI albo przerywa, jesli poproszono o Stop.
-
-        Raises:
-            OptimizationCancelled: EN: If cancellation is pending before or after emission.
-                                   PL: Gdy uzytkownik zatrzymuje obliczenia.
-        """
-        # Przekazuje do GUI dane z kolejnej generacji albo przerywa, jesli przyszlo zadanie stop.
+        # Emit one generation payload unless cancellation is pending.
         if self._cancel_pending():
             raise OptimizationCancelled()
-        # Trzymamy ostatni znany stan, aby po stopie lub bledzie pokazac ostatnie dane w UI.
         self._last_payload = payload or {}
         self.generation.emit(self._last_payload)
         if self._cancel_pending():
             raise OptimizationCancelled()
 
     def run(self) -> None:
-        """
-        EN:
-        Build runtime objects, execute optimization and emit done/cancelled/failed signals.
-
-        PL:
-        Tworzy problem i algorytm, uruchamia optymalizacje oraz informuje GUI o
-        zakonczeniu, zatrzymaniu albo bledzie.
-        """
-        # Tworzy problem, algorytm i odpala minimalizacje w osobnym watku.
+        # Build runtime objects, execute optimization, and emit result signals.
         problem = None
         try:
             if self._cancel_pending():
@@ -746,7 +665,6 @@ class OptimizationWorker(QThread):
             algorithm = algorithm_factory(**filter_callable_kwargs(algorithm_factory, algorithm_params))
             if self._n_gen is None:
                 algorithm.termination = NoTermination()
-            # Callback zbiera dane po generacjach i odsylka je z powrotem do okna.
             callback = make_generation_callback(
                 self._emit_generation,
                 problem=problem,
@@ -770,26 +688,12 @@ class OptimizationWorker(QThread):
 
 
 class MainWindow(QMainWindow):
-    """
-    EN:
-    Main PyQt window coordinating forms, plotting, run control, metrics and export.
-
-    PL:
-    Glowne okno aplikacji, ktore laczy formularze, wykres, tabele metryk i
-    sterowanie optymalizacja.
-    """
+    # Main application window for configuration, execution, plotting, and export.
 
     def __init__(self):
-        """
-        EN:
-        Initialize widgets, runtime state and initial previews.
-
-        PL:
-        Tworzy okno, ustawia poczatkowy stan paneli i przygotowuje pierwszy podglad.
-        """
-        # Inicjalizuje glowne okno i ustawia stan startowy wszystkich paneli.
+        # Initialize widgets, runtime state, and initial previews.
         super().__init__()
-        self.setWindowTitle("pymoo GUI framework (zdt1/nsga2)")
+        self.setWindowTitle("pymoo GUI framework")
         self.resize(1500, 920)
         self._thread: Optional[OptimizationWorker] = None
         self._n_obj_widget: Optional[QSpinBox] = None
@@ -803,12 +707,13 @@ class MainWindow(QMainWindow):
         self._plot_n_obj: Optional[int] = None
         self._run_algorithm_name: Optional[str] = None
         self._run_problem_name: Optional[str] = None
-        self._run_nd_save_mode = ND_SAVE_EVERY_EPOCH
+        self._run_nd_save_mode = ND_SAVE_LAST_EPOCH
         self._run_nd_save_step = 1
         self._run_metrics_export_path: Optional[Path] = None
         self._run_solutions_export_path: Optional[Path] = None
         self._nd_solution_sheets: dict[int, tuple[list[str], list[list[object]]]] = {}
         self._build_ui()
+        self._apply_english_ui_texts()
         self._connect_signals()
         self._configure_placeholders()
         self._rebuild_problem_form()
@@ -818,14 +723,7 @@ class MainWindow(QMainWindow):
         self._update_run_button_state()
 
     def _build_ui(self) -> None:
-        """
-        EN:
-        Build the main horizontal splitter with controls and results panels.
-
-        PL:
-        Tworzy glowny podzial okna na panel ustawien oraz panel wynikow.
-        """
-        # Lewa strona sluzy do konfiguracji, prawa do wykresu i tabeli z metrykami.
+        # Build the main horizontal splitter with controls and results panels.
         splitter = QSplitter(Qt.Horizontal)
         self.setCentralWidget(splitter)
         controls_panel = self._build_controls_panel()
@@ -837,15 +735,28 @@ class MainWindow(QMainWindow):
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
 
-    def _build_controls_panel(self) -> QWidget:
-        """
-        EN:
-        Build the left-side controls panel.
+    def _apply_english_ui_texts(self) -> None:
+        # Normalize GUI captions and labels to English after widget construction.
+        self._plot_placeholder.setText("No plot available. Start an optimization run.")
+        self.problem_form.setTitle("Problem parameters")
+        self.alg_form.setTitle("Algorithm parameters")
+        self.run_form.setTitle("Run")
+        self.hv_manual_radio.setText("Manual ref point")
+        self.hv_manual_edit.setPlaceholderText("0.6 0.6 0.6 or 0.6,0.6,0.6")
+        self.hv_ref_lbl.setText("HV ref point (active): -")
+        self.live_updates.setText("Update plot during run")
+        self.show_population_cb.setText("Show population")
+        self.hide_pareto_front_cb.setText("Hide Pareto front")
+        self.auto_scale_axes.setText("Auto-scale axes")
+        self.nd_save_group.setTitle("Nondominated solution export")
+        self.nd_save_mode_combo.setItemText(0, "Last epoch")
+        self.nd_save_mode_combo.setItemText(1, "Every N epochs")
+        self.nd_save_mode_combo.setItemText(2, "Cascade")
+        self.console_btn.setText("Console")
+        self.console_dock.setWindowTitle("Console")
 
-        PL:
-        Tworzy lewy panel z wyborem problemu, algorytmu i ustawieniami uruchomienia.
-        """
-        # Sklada lewy panel z formularzami, ustawieniami przebiegu i konsola.
+    def _build_controls_panel(self) -> QWidget:
+        # Build the left-side controls panel.
         panel = QWidget()
         panel.setMinimumWidth(440)
         panel.setMaximumWidth(440)
@@ -857,17 +768,10 @@ class MainWindow(QMainWindow):
         return panel
 
     def _build_results_panel(self) -> QWidget:
-        """
-        EN:
-        Build the right-side plot and metrics-history panel.
-
-        PL:
-        Tworzy prawy panel z wykresem Pareto i tabela metryk.
-        """
-        # Tworzy prawa czesc okna z wykresem Pareto i tabela metryk.
+        # Build the right-side plot and metrics-history panel.
         self._plot_panel = QWidget()
         self._plot_layout = QVBoxLayout(self._plot_panel)
-        self._plot_placeholder = QLabel("Brak wykresu - uruchom optymalizację")
+        self._plot_placeholder = QLabel("No plot available. Start an optimization run.")
         self._plot_placeholder.setAlignment(Qt.AlignCenter)
         self._plot_placeholder.setWordWrap(True)
         self._plot_layout.setContentsMargins(0, 0, 0, 0)
@@ -894,89 +798,68 @@ class MainWindow(QMainWindow):
         return panel
 
     def _build_problem_controls(self) -> None:
-        """
-        EN:
-        Add problem and algorithm selectors with their dynamic parameter forms.
-
-        PL:
-        Dodaje wybor problemu i algorytmu oraz formularze ich parametrow.
-        """
-        # Dodaje wybieranie problemu i algorytmu wraz z ich dynamicznymi formularzami.
+        # Add problem and algorithm selectors with their dynamic parameter forms.
         self.problem_combo = QComboBox()
         for key, entry in PROBLEMS.items():
             self.problem_combo.addItem(entry.get("label", key), userData=key)
-        self.problem_form = ParamForm("Parametry problemu")
+        self.problem_form = ParamForm("Problem parameters")
 
         self.alg_combo = QComboBox()
         for key, entry in ALGORITHMS.items():
             self.alg_combo.addItem(entry.get("label", key), userData=key)
-        self.alg_form = ParamForm("Parametry algorytmu")
+        self.alg_form = ParamForm("Algorithm parameters")
 
         self._left.addWidget(QLabel("Problem:"))
         self._left.addWidget(self.problem_combo)
         self._left.addWidget(self.problem_form)
-        self._left.addWidget(QLabel("Algorytm:"))
+        self._left.addWidget(QLabel("Algorithm:"))
         self._left.addWidget(self.alg_combo)
         self._left.addWidget(self.alg_form)
 
     def _build_hv_controls(self) -> None:
-        """
-        EN:
-        Build controls for automatic or manual hypervolume reference points.
-
-        PL:
-        Tworzy sekcje ustawiania punktu odniesienia dla metryki HV.
-        """
-        # Buduje sekcje ustawiania punktu odniesienia dla metryki HV.
+        # Build controls for automatic or manual hypervolume reference points.
         self.hv_ref_group = QGroupBox("HV ref point")
         hv_layout = QVBoxLayout(self.hv_ref_group)
         mode_row = QHBoxLayout()
         self.hv_auto_radio = QRadioButton("Auto ref point")
-        self.hv_manual_radio = QRadioButton("Ręczny ref point")
+        self.hv_manual_radio = QRadioButton("Manual ref point")
         self.hv_auto_radio.setChecked(True)
         mode_row.addWidget(self.hv_auto_radio)
         mode_row.addWidget(self.hv_manual_radio)
         hv_layout.addLayout(mode_row)
         self.hv_manual_edit = QLineEdit()
-        self.hv_manual_edit.setPlaceholderText("0,6 0,6 0,6 albo 0.6,0.6,0.6")
+        self.hv_manual_edit.setPlaceholderText("0.6 0.6 0.6 or 0.6,0.6,0.6")
         self.hv_manual_edit.setEnabled(False)
-        self.hv_ref_lbl = QLabel("HV ref point (aktywny): -")
+        self.hv_ref_lbl = QLabel("HV ref point (active): -")
         hv_layout.addWidget(self.hv_manual_edit)
         hv_layout.addWidget(self.hv_ref_lbl)
         self._left.addWidget(self.hv_ref_group)
 
     def _build_run_controls(self) -> None:
-        """
-        EN:
-        Build run options, live-plot toggles, command buttons and status labels.
-
-        PL:
-        Tworzy opcje startu, przelaczniki wykresu, przyciski i etykiety statusu.
-        """
-        # Dodaje opcje uruchomienia oraz przyciski start i stop.
-        self.run_form = ParamForm("Uruchomienie")
+        # Build run options, live-plot toggles, command buttons, and status labels.
+        self.run_form = ParamForm("Run")
         self.run_form.build_from_specs(RUN_FORM_FIELDS)
         self._left.addWidget(self.run_form)
 
-        self.live_updates = QCheckBox("Aktualizuj wykres w trakcie")
+        self.live_updates = QCheckBox("Update plot during run")
         self.live_updates.setChecked(True)
-        self.show_population_cb = QCheckBox("Pokaż populację")
+        self.show_population_cb = QCheckBox("Show population")
         self.show_population_cb.setChecked(True)
-        self.hide_pareto_front_cb = QCheckBox("Ukryj front Pareto")
+        self.hide_pareto_front_cb = QCheckBox("Hide Pareto front")
         self.hide_pareto_front_cb.setChecked(False)
-        self.auto_scale_axes = QCheckBox("Auto-skala osi")
+        self.auto_scale_axes = QCheckBox("Auto-scale axes")
         self.auto_scale_axes.setChecked(True)
-        self.nd_save_group = QGroupBox("Zapis rozwiązań niezdominowanych")
+        self.nd_save_group = QGroupBox("Nondominated solution export")
         nd_save_layout = QFormLayout(self.nd_save_group)
         self.nd_save_mode_combo = QComboBox()
-        self.nd_save_mode_combo.addItem("Każda epoka", userData=ND_SAVE_EVERY_EPOCH)
-        self.nd_save_mode_combo.addItem("Co N epok", userData=ND_SAVE_EVERY_N_EPOCHS)
-        self.nd_save_mode_combo.addItem("Kaskada", userData=ND_SAVE_CASCADE)
+        self.nd_save_mode_combo.addItem("Last epoch", userData=ND_SAVE_LAST_EPOCH)
+        self.nd_save_mode_combo.addItem("Every N epochs", userData=ND_SAVE_EVERY_N_EPOCHS)
+        self.nd_save_mode_combo.addItem("Cascade", userData=ND_SAVE_CASCADE)
         self.nd_save_step_spin = QSpinBox()
         self.nd_save_step_spin.setRange(1, 10**9)
         self.nd_save_step_spin.setValue(10)
-        nd_save_layout.addRow("Tryb:", self.nd_save_mode_combo)
-        nd_save_layout.addRow("Krok:", self.nd_save_step_spin)
+        nd_save_layout.addRow("Mode:", self.nd_save_mode_combo)
+        nd_save_layout.addRow("Step:", self.nd_save_step_spin)
         self._left.addWidget(self.live_updates)
         self._left.addWidget(self.show_population_cb)
         self._left.addWidget(self.hide_pareto_front_cb)
@@ -987,44 +870,30 @@ class MainWindow(QMainWindow):
         self.run_btn = QPushButton("Start")
         self.stop_btn = QPushButton("Stop")
         self.stop_btn.setEnabled(False)
-        self.console_btn = QPushButton("Konsola")
+        self.console_btn = QPushButton("Console")
         button_row.addWidget(self.run_btn)
         button_row.addWidget(self.stop_btn)
         button_row.addWidget(self.console_btn)
         self._left.addLayout(button_row)
 
-        self.status_lbl = QLabel("Status: bezczynny")
+        self.status_lbl = QLabel("Status: idle")
         self.metrics_lbl = QLabel(self._metrics_label_text({}))
         self._left.addWidget(self.status_lbl)
         self._left.addWidget(self.metrics_lbl)
         self._left.addStretch(1)
 
     def _build_console(self) -> None:
-        """
-        EN:
-        Create the docked runtime console.
-
-        PL:
-        Tworzy dolny panel konsoli z logami aplikacji.
-        """
-        # Tworzy dolny dock z logiem dzialania aplikacji.
+        # Create the docked runtime console.
         self.text_out = QTextEdit()
         self.text_out.setReadOnly(True)
-        self.console_dock = QDockWidget("Konsola", self)
+        self.console_dock = QDockWidget("Console", self)
         self.console_dock.setAllowedAreas(Qt.BottomDockWidgetArea)
         self.console_dock.setWidget(self.text_out)
         self.addDockWidget(Qt.BottomDockWidgetArea, self.console_dock)
         self.resizeDocks([self.console_dock], [int(self.height() * 0.3)], Qt.Vertical)
 
     def _connect_signals(self) -> None:
-        """
-        EN:
-        Connect Qt widget signals to their event handlers.
-
-        PL:
-        Podpina klikniecia i zmiany pol do metod obslugujacych reakcje GUI.
-        """
-        # Spina widgety z handlerami, aby UI reagowalo na zmiany i klikniecia.
+        # Connect Qt widget signals to their event handlers.
         self.problem_combo.currentIndexChanged.connect(self._rebuild_problem_form)
         self.alg_combo.currentIndexChanged.connect(self._rebuild_alg_form)
         self.hv_auto_radio.toggled.connect(self._on_hv_mode_changed)
@@ -1048,45 +917,27 @@ class MainWindow(QMainWindow):
             parallel_binding.widget.toggled.connect(self._on_parallel_eval_toggled)
 
     def _configure_placeholders(self) -> None:
-        """
-        EN:
-        Configure initial tooltips, placeholders and dependent run-form state.
-
-        PL:
-        Ustawia podpowiedzi oraz poczatkowy stan pol zaleznch od innych opcji.
-        """
-        # Ustawia podpowiedzi i dopasowuje stan formularza run po starcie okna.
-        self.live_updates.setToolTip("Włącza odświeżanie wykresu Pareto w trakcie kolejnych generacji.")
-        self.show_population_cb.setToolTip("Pokazuje lub ukrywa pełną populację na wykresie Pareto.")
-        self.hide_pareto_front_cb.setToolTip("Ukrywa znany front Pareto, ale nie usuwa go z danych używanych przez metryki.")
-        self.auto_scale_axes.setToolTip("Jednorazowo dopasowuje zakres osi dla aktualnego widoku Pareto, bez przeliczania przy każdej generacji.")
-        self.nd_save_mode_combo.setToolTip("Wybiera, dla których epok zapisywać front niezdominowany.")
-        self.nd_save_step_spin.setToolTip("Dodatnia liczba całkowita używana tylko w trybie 'Co N epok'.")
+        # Configure initial tooltips, placeholders, and dependent run-form state.
+        self.live_updates.setToolTip("Refresh the Pareto plot after each generation.")
+        self.show_population_cb.setToolTip("Show or hide the full population in the Pareto plot.")
+        self.hide_pareto_front_cb.setToolTip(
+            "Hide the known Pareto front without removing it from the data used by the metrics."
+        )
+        self.auto_scale_axes.setToolTip(
+            "Fit the axis ranges for the current Pareto view without recomputing them on every generation."
+        )
+        self.nd_save_mode_combo.setToolTip("Choose for which epochs the nondominated front should be saved.")
+        self.nd_save_step_spin.setToolTip("Positive integer used only in the 'Every N epochs' mode.")
         self._update_nd_save_controls_state()
         self._update_run_form_state()
 
     def _entry(self, combo: QComboBox, registry: Mapping[str, Dict[str, Any]]) -> Dict[str, Any]:
-        """
-        EN:
-        Return the registry entry for the current combo-box selection.
-
-        PL:
-        Pobiera opis aktualnie wybranego problemu albo algorytmu.
-        """
-        # Pobiera pelny opis aktualnie wybranej pozycji z rejestru.
+        # Return the registry entry for the current combo-box selection.
         key = combo.currentData()
         return dict(registry.get(str(key), {})) if key is not None else {}
 
     def _known_pf_for_problem(self, entry: Mapping[str, Any], problem: Any) -> Optional[np.ndarray]:
-        """
-        EN:
-        Resolve and normalize a known Pareto front for preview and metrics.
-
-        PL:
-        Przygotowuje znany front Pareto, ktory jest pokazywany na wykresie i
-        uzywany do metryk.
-        """
-        # Przygotowanie znanego frontu Pareto dla podgladu i metryk.
+        # Resolve and normalize a known Pareto front for preview and metrics.
         known_pf_factory = entry.get("known_pf_factory")
         if callable(known_pf_factory):
             try:
@@ -1106,19 +957,15 @@ class MainWindow(QMainWindow):
             return data if data.shape[0] > 0 else None
         return known_pareto_front(problem)
 
-    def _instantiate_selected_problem(self, params: Optional[Mapping[str, Any]] = None) -> Tuple[Optional[Any], Optional[str]]:
-        """
-        EN:
-        Instantiate the currently selected problem and return an error string instead of raising.
-
-        PL:
-        Tworzy wybrany problem; gdy cos jest niepoprawne, zwraca opis bledu dla GUI.
-        """
-        # Tworzy instancje aktualnie wybranego problemu i zwraca blad zamiast wyjatku.
+    def _instantiate_selected_problem(
+        self,
+        params: Optional[Mapping[str, Any]] = None,
+    ) -> Tuple[Optional[Any], Optional[str]]:
+        # Instantiate the selected problem and return an error string instead of raising.
         entry = self._entry(self.problem_combo, PROBLEMS)
         factory = entry.get("factory")
         if not callable(factory):
-            return None, "Brak poprawnego factory problemu."
+            return None, "No valid problem factory is available."
         params = dict(params or self.problem_form.values())
         try:
             return factory(**filter_callable_kwargs(factory, params)), None
@@ -1126,13 +973,7 @@ class MainWindow(QMainWindow):
             return None, repr(exc)
 
     def _connect_problem_form_signals(self) -> None:
-        """
-        EN:
-        Connect dynamic problem-form widgets to preview refresh handling.
-
-        PL:
-        Podpina pola problemu tak, aby zmiana parametru odswiezala podglad.
-        """
+        # Connect dynamic problem-form widgets to preview refresh handling.
         for binding in self.problem_form.bindings():
             widget = binding.widget
             if isinstance(widget, (QSpinBox, QDoubleSpinBox)):
@@ -1145,14 +986,7 @@ class MainWindow(QMainWindow):
                 widget.currentIndexChanged.connect(self._on_problem_form_changed)
 
     def _ensure_plot_widget(self) -> UnifiedParetoWidget:
-        """
-        EN:
-        Create or reuse a Pareto plot widget matching the current objective count.
-
-        PL:
-        Tworzy albo odtwarza widget wykresu pasujacy do liczby funkcji celu.
-        """
-        # Tworzy widget wykresu dla aktualnej liczby celow.
+        # Create or reuse a Pareto plot widget matching the current objective count.
         n_obj = int(self._plot_n_obj or 2)
         if self._plot_widget is not None and self._plot_widget_dim != n_obj:
             self._plot_layout.removeWidget(self._plot_widget)
@@ -1175,64 +1009,31 @@ class MainWindow(QMainWindow):
         return self._plot_widget
 
     def _reset_plot_axes(self) -> None:
-        """
-        EN:
-        Reset cached plot axis limits when the underlying data context changes.
-
-        PL:
-        Przywraca automatyczny zakres osi po zmianie danych albo ustawien.
-        """
-        # Przywraca domyslny widok osi, jesli widget wykresu juz istnieje.
+        # Reset cached plot axis limits when the underlying data context changes.
         if self._plot_widget is not None and hasattr(self._plot_widget, "reset_view_limits"):
             self._plot_widget.reset_view_limits()
 
     def _set_plot_message(self, text: str) -> None:
-        """
-        EN:
-        Hide the plot widget and show an explanatory placeholder message.
-
-        PL:
-        Ukrywa wykres i pokazuje uzytkownikowi komunikat tekstowy.
-        """
-        # Ukrywa wykres i pokazuje uzytkownikowi tekstowy komunikat.
-        self._plot_placeholder.setText(text)
+        # Hide the plot widget and show an explanatory placeholder message.
+        self._plot_placeholder.setText(translate_ui_text(text))
         self._plot_placeholder.show()
         if self._plot_widget is not None:
             self._plot_widget.hide()
 
     def _reset_plot_run_data(self) -> None:
-        """
-        EN:
-        Clear per-run plot data while keeping problem-level reference data.
-
-        PL:
-        Czyści dane poprzedniego przebiegu z wykresu, ale zostawia znany front problemu.
-        """
+        # Clear per-run plot data while keeping problem-level reference data.
         self._plot_feasible_nd_F = None
         self._plot_population_F = None
         self._plot_generation = None
 
     def _reset_run_result_state(self) -> None:
-        """
-        EN:
-        Clear metrics history, run plot data and summary labels.
-
-        PL:
-        Czyści wyniki poprzedniego uruchomienia przed nowym startem.
-        """
+        # Clear metrics history, run plot data, and summary labels.
         self._clear_table()
         self._reset_plot_run_data()
         self._update_metrics_label(None)
 
     def _update_run_form_state(self) -> None:
-        """
-        EN:
-        Enable or disable run-form fields according to RAN and parallel-evaluation toggles.
-
-        PL:
-        Wlacza i wylacza pola formularza zalezne od trybu RAN oraz rownoleglosci.
-        """
-        # Przelacza pole `n_gen` zaleznnie od tego, czy wybrano tryb RAN.
+        # Enable or disable run-form fields according to RAN and parallel-evaluation toggles.
         ran_binding = self.run_form.binding("ran")
         n_gen_binding = self.run_form.binding("n_gen")
         if ran_binding is not None and n_gen_binding is not None:
@@ -1242,7 +1043,9 @@ class MainWindow(QMainWindow):
                 n_gen_widget.setEnabled(not ran_enabled)
             if isinstance(n_gen_widget, QAbstractSpinBox):
                 n_gen_widget.setReadOnly(ran_enabled)
-                n_gen_widget.setButtonSymbols(QAbstractSpinBox.NoButtons if ran_enabled else QAbstractSpinBox.UpDownArrows)
+                n_gen_widget.setButtonSymbols(
+                    QAbstractSpinBox.NoButtons if ran_enabled else QAbstractSpinBox.UpDownArrows
+                )
 
         parallel_binding = self.run_form.binding("parallel_eval")
         parallel_workers_binding = self.run_form.binding("parallel_workers")
@@ -1254,88 +1057,41 @@ class MainWindow(QMainWindow):
                     binding.widget.setEnabled(parallel_enabled)
 
     def _current_nd_save_mode(self) -> str:
-        """
-        EN:
-        Return the currently selected nondominated-solution save mode.
-
-        PL:
-        Zwraca aktualnie wybrany tryb zapisu frontu niezdominowanego.
-        """
+        # Return the selected nondominated-solution save mode.
         mode = self.nd_save_mode_combo.currentData()
-        return str(mode) if mode is not None else ND_SAVE_EVERY_EPOCH
+        return str(mode) if mode is not None else ND_SAVE_LAST_EPOCH
 
     def _update_nd_save_controls_state(self) -> None:
-        """
-        EN:
-        Enable the step field only for the "every N epochs" nondominated-save mode.
-
-        PL:
-        Wlacza pole kroku tylko dla trybu "co N epok".
-        """
+        # Enable the step field only for the "every N epochs" save mode.
         self.nd_save_step_spin.setEnabled(self._current_nd_save_mode() == ND_SAVE_EVERY_N_EPOCHS)
 
     def _collect_nd_save_args(self) -> Tuple[Optional[dict], Optional[str]]:
-        """
-        EN:
-        Validate nondominated-solution export settings selected in the GUI.
-
-        PL:
-        Pobiera i sprawdza ustawienia zapisu frontu niezdominowanego.
-        """
+        # Validate nondominated-solution export settings selected in the GUI.
         mode = self._current_nd_save_mode()
-        if mode not in {ND_SAVE_EVERY_EPOCH, ND_SAVE_EVERY_N_EPOCHS, ND_SAVE_CASCADE}:
-            return None, "Tryb zapisu rozwiązań niezdominowanych jest niepoprawny."
-        step, error = self._validated_int(self.nd_save_step_spin.value(), "Krok zapisu rozwiązań", 1)
+        if mode not in {ND_SAVE_LAST_EPOCH, "every_epoch", ND_SAVE_EVERY_N_EPOCHS, ND_SAVE_CASCADE}:
+            return None, "Invalid nondominated-solution export mode."
+        step, error = self._validated_int(self.nd_save_step_spin.value(), "Solution export step", 1)
         if error:
             return None, error
         return {"mode": mode, "step": int(step)}, None
 
     def _set_run_state(self, status_text: str, running: bool) -> None:
-        """
-        EN:
-        Update run status text and Start/Stop button availability.
-
-        PL:
-        Aktualizuje status oraz dostepnosc przyciskow Start i Stop.
-        """
-        # Ustawia status uruchomienia i blokuje lub odblokowuje przyciski.
-        self.status_lbl.setText(f"Status: {status_text}")
+        # Update run status text and Start/Stop button availability.
+        self.status_lbl.setText(translate_ui_text(f"Status: {status_text}"))
         self.run_btn.setEnabled(not running and self._validate_hv_manual_ref_point())
         self.stop_btn.setEnabled(running)
 
     def _apply_generation_payload(self, payload: Mapping[str, Any]) -> None:
-        """
-        EN:
-        Copy generation payload data into plot-state fields.
-
-        PL:
-        Przenosi dane jednej generacji do pamieci wykresu i etykiet.
-        """
-        # Kopiuje dane z callbacku do pol uzywanych przez wykres i metryki.
+        # Copy generation payload data into plot-state fields.
         known_pf = payload.get("known_pf")
         if known_pf is not None:
             self._plot_known_pf = known_pf
         self._plot_feasible_nd_F = payload.get("feasible_nd_F")
         self._plot_population_F = payload.get("population_F")
         self._plot_generation = payload.get("n_gen")
-        if DEBUG:
-            self._log(
-                "PLOT store overwrite "
-                f"source=worker_payload gen={self._fmt_int(self._plot_generation)} "
-                f"pop={self._shape_text(self._plot_population_F)} "
-                f"front={self._shape_text(self._plot_feasible_nd_F)} "
-                f"known_pf={self._shape_text(self._plot_known_pf)}"
-            )
 
     def _apply_problem_preview_state(self, problem: Any) -> None:
-        """
-        EN:
-        Refresh problem-level Pareto preview data after problem changes.
-
-        PL:
-        Odswieza podglad frontu Pareto po zmianie problemu lub jego parametrow.
-        """
-        # Odswieza dane podgladu po zmianie problemu lub jego parametrow.
+        # Refresh problem-level Pareto preview data after problem changes.
         entry = self._entry(self.problem_combo, PROBLEMS)
         self._plot_known_pf = self._known_pf_for_problem(entry, problem)
         try:
@@ -1345,38 +1101,26 @@ class MainWindow(QMainWindow):
         self._render_plot()
 
     def _refresh_problem_plot(self) -> None:
-        """
-        EN:
-        Recreate the selected problem and refresh the Pareto preview.
-
-        PL:
-        Buduje problem od nowa i aktualizuje podglad, pokazujac blad przy zlych parametrach.
-        """
-        # Buduje podglad problemu od zera i pokazuje blad, jesli parametry sa niepoprawne.
+        # Recreate the selected problem and refresh the Pareto preview.
         problem, error = self._instantiate_selected_problem()
         self._reset_plot_run_data()
         self._reset_plot_axes()
         if problem is None:
             self._plot_known_pf = None
             self._plot_n_obj = None
-            self._set_plot_message("Nie można przygotować podglądu Pareto.")
+            self._set_plot_message("Unable to prepare the Pareto preview.")
             if error:
                 self._log(f"Preview: {error}")
             return
         self._apply_problem_preview_state(problem)
 
     def _render_plot(self) -> None:
-        """
-        EN:
-        Render the current 2D/3D Pareto data or show a dimensionality message.
-
-        PL:
-        Rysuje aktualny wykres Pareto albo pokazuje komunikat, gdy liczba celow jest za duza.
-        """
-        # Renderuje wykres 2D/3D albo pokazuje komunikat dla wiekszej liczby celow.
+        # Render the current 2D/3D Pareto data or show a dimensionality message.
         if self._plot_n_obj not in (2, 3):
             label = "?" if self._plot_n_obj is None else str(self._plot_n_obj)
-            self._set_plot_message(f"Podgląd Pareto jest dostępny tylko dla 2 lub 3 celów. Wybrany problem ma {label}.")
+            self._set_plot_message(
+                f"Pareto preview is available only for 2 or 3 objectives. The selected problem has {label}."
+            )
             return
         widget = self._ensure_plot_widget()
         self._plot_placeholder.hide()
@@ -1386,34 +1130,12 @@ class MainWindow(QMainWindow):
         pop = self._plot_population_F
         ref = np.empty((0, n_obj)) if self.hide_pareto_front_cb.isChecked() else self._plot_known_pf
         widget.update_points(pop, self._plot_feasible_nd_F, ref, self._plot_generation)
-        if DEBUG:
-            snapshot = widget.render_snapshot() if hasattr(widget, "render_snapshot") else {}
-            self._log(
-                "PLOT render "
-                f"source=main_window_cache dim={n_obj} gen={self._fmt_int(self._plot_generation)} "
-                f"backend={snapshot.get('backend', '?')} pop={snapshot.get('pop_shape')} "
-                f"front={snapshot.get('front_shape')} ref={snapshot.get('ref_shape')}"
-            )
-            if snapshot.get("gen") != self._plot_generation:
-                self._log(f"PLOT generation mismatch ui={self._plot_generation} rendered={snapshot.get('gen')}")
 
     def _rebuild_problem_form(self) -> None:
-        """
-        EN:
-        Rebuild problem parameter widgets after the selected problem changes.
-
-        PL:
-        Przebudowuje formularz problemu po zmianie wyboru w comboboxie.
-        """
-        # Przebudowuje formularz problemu po zmianie wyboru w comboboxie.
+        # Rebuild problem parameter widgets after the selected problem changes.
         entry = self._entry(self.problem_combo, PROBLEMS)
-        try:
-            self.problem_form.build_for_callable(entry.get("factory"), entry.get("form_fields"))
-            note = entry.get("form_note")
-        except (TypeError, ValueError, AttributeError):
-            self.problem_form.build_from_specs(entry.get("form_fields"))
-            note = "Formularz problemu korzysta z bezpiecznego fallbacku; pełna konfiguracja dynamiczna nie jest jeszcze gotowa."
-        self.problem_form.setToolTip(note or "")
+        self.problem_form.build_for_callable(entry["factory"], entry.get("form_fields"))
+        self.problem_form.setToolTip(translate_ui_text(entry.get("form_note") or ""))
         self._connect_problem_form_signals()
         self._connect_problem_param_signals()
         self._refresh_problem_plot()
@@ -1421,32 +1143,13 @@ class MainWindow(QMainWindow):
         self._update_run_button_state()
 
     def _rebuild_alg_form(self) -> None:
-        """
-        EN:
-        Rebuild algorithm parameter widgets after the selected algorithm changes.
-
-        PL:
-        Przebudowuje formularz algorytmu po zmianie wyboru.
-        """
-        # Przebudowuje formularz algorytmu na podstawie aktualnego wpisu w rejestrze.
+        # Rebuild algorithm parameter widgets after the selected algorithm changes.
         entry = self._entry(self.alg_combo, ALGORITHMS)
-        try:
-            self.alg_form.build_for_callable(entry.get("factory"), entry.get("form_fields"))
-            note = entry.get("form_note")
-        except (TypeError, ValueError, AttributeError):
-            self.alg_form.build_from_specs(entry.get("form_fields"))
-            note = "Formularz algorytmu korzysta z bezpiecznego fallbacku; pełna konfiguracja dynamiczna nie jest jeszcze gotowa."
-        self.alg_form.setToolTip(note or "")
+        self.alg_form.build_for_callable(entry["factory"], entry.get("form_fields"))
+        self.alg_form.setToolTip(translate_ui_text(entry.get("form_note") or ""))
 
     def _connect_problem_param_signals(self) -> None:
-        """
-        EN:
-        Track the `n_obj` field because it affects HV validation and plotting.
-
-        PL:
-        Pilnuje pola liczby celow, od ktorego zalezy HV i stan przycisku Start.
-        """
-        # Pilnuje sygnalu od `n_obj`, bo od niego zalezy HV i stan przycisku start.
+        # Track the `n_obj` field because it affects HV validation and plotting.
         binding = self.problem_form.binding("n_obj")
         widget = binding.widget if binding and isinstance(binding.widget, QSpinBox) else None
         if self._n_obj_widget is not None and self._n_obj_widget is not widget:
@@ -1463,63 +1166,28 @@ class MainWindow(QMainWindow):
             self._n_obj_widget.valueChanged.connect(self._on_n_obj_changed)
 
     def _on_n_obj_changed(self, _value: int) -> None:
-        """
-        EN:
-        Refresh HV validation and run availability after objective-count changes.
-
-        PL:
-        Odswieza punkt odniesienia HV i przycisk Start po zmianie liczby celow.
-        """
-        # Po zmianie liczby celow odswieza zalezne pola i walidacje.
+        # Refresh HV validation and run availability after objective-count changes.
         self._update_hv_ref_point_label()
         self._update_run_button_state()
 
     def _on_problem_form_changed(self, *_args: Any) -> None:
-        """
-        EN:
-        Handle any problem-parameter change by refreshing the preview.
-
-        PL:
-        Reaguje na zmiane parametrow problemu i odswieza podglad.
-        """
-        # Kazda zmiana parametrow problemu od razu odswieza podglad.
+        # Handle any problem-parameter change by refreshing the preview.
         self._refresh_problem_plot()
 
     def _on_show_population_toggled(self, checked: bool) -> None:
-        """
-        EN:
-        Toggle the full-population layer on the Pareto plot.
-
-        PL:
-        Wlacza albo ukrywa warstwe z cala populacja na wykresie.
-        """
-        # Wlacza lub ukrywa warstwe z cala populacja na wykresie.
-        self._log(f"show_population={checked} (pelna populacja jako osobna warstwa)")
+        # Toggle the full-population layer on the Pareto plot.
+        self._log(f"show_population={checked} (full population as a separate layer)")
         self._render_plot()
 
     def _on_hide_pareto_front_toggled(self, checked: bool) -> None:
-        """
-        EN:
-        Toggle display of the known Pareto-front reference layer.
-
-        PL:
-        Ukrywa albo pokazuje znany front Pareto bez usuwania go z danych metryk.
-        """
-        # Ukrywa albo pokazuje znany front Pareto bez kasowania danych.
+        # Toggle display of the known Pareto-front reference layer.
         self._log(f"hide_pareto_front={checked}")
         if checked or self.auto_scale_axes.isChecked():
             self._reset_plot_axes()
         self._render_plot()
 
     def _on_auto_scale_toggled(self, checked: bool) -> None:
-        """
-        EN:
-        Toggle plot auto-scaling and reset cached limits when re-enabled.
-
-        PL:
-        Wlacza automatyczna skale osi i resetuje widok, gdy jest ponownie aktywna.
-        """
-        # Steruje automatycznym dopasowaniem osi i ewentualnie resetuje widok.
+        # Toggle plot auto-scaling and reset cached limits when re-enabled.
         self._log(f"auto_scale={checked}")
         if self._plot_widget is not None:
             self._plot_widget.set_auto_scale(bool(checked))
@@ -1528,96 +1196,41 @@ class MainWindow(QMainWindow):
             self._render_plot()
 
     def _on_nd_save_mode_changed(self, _index: int) -> None:
-        """
-        EN:
-        React to changes of the nondominated-solution save mode.
-
-        PL:
-        Reaguje na zmiane trybu zapisu frontu niezdominowanego.
-        """
+        # React to changes of the nondominated-solution save mode.
         self._update_nd_save_controls_state()
 
     def _on_ran_toggled(self, checked: bool) -> None:
-        """
-        EN:
-        Handle switching the run to or from unbounded RAN mode.
-
-        PL:
-        Reaguje na wlaczenie albo wylaczenie trybu bez limitu generacji.
-        """
-        # Reaguje na przelaczenie trybu bez limitu generacji.
+        # Handle switching the run to or from unbounded RAN mode.
         self._update_run_form_state()
         self._log(f"RAN={checked}")
 
     def _on_parallel_eval_toggled(self, checked: bool) -> None:
-        """
-        EN:
-        Enable or disable fields related to parallel objective evaluation.
-
-        PL:
-        Reaguje na wlaczenie rownoleglego liczenia funkcji celu.
-        """
-        # Reaguje na wlaczenie rownoleglej ewaluacji funkcji celu.
+        # Enable or disable fields related to parallel objective evaluation.
         self._update_run_form_state()
         self._log(f"parallel_eval={checked}")
 
     def _toggle_console_dock(self) -> None:
-        """
-        EN:
-        Toggle the visibility of the docked console.
-
-        PL:
-        Pokazuje albo ukrywa panel konsoli.
-        """
-        # Pokazuje albo ukrywa dolny panel z logiem.
+        # Toggle the visibility of the docked console.
         self.console_dock.setVisible(not self.console_dock.isVisible())
 
     def _on_console_visibility_changed(self, visible: bool) -> None:
-        """
-        EN:
-        Keep the console button label synchronized with dock visibility.
-
-        PL:
-        Dopasowuje tekst przycisku do tego, czy konsola jest widoczna.
-        """
-        # Aktualizuje tekst przycisku zgodnie z widocznoscia konsoli.
-        self.console_btn.setText("Ukryj konsole" if visible else "Pokaz konsole")
+        # Keep the console button label synchronized with dock visibility.
+        self.console_btn.setText("Hide console" if visible else "Show console")
 
     def _log(self, msg: str) -> None:
-        """
-        EN:
-        Append a message to the GUI console.
-
-        PL:
-        Dopisuje komunikat do konsoli aplikacji.
-        """
-        # Dopisuje wpis do konsoli i przewija log do konca, gdy panel jest otwarty.
-        self.text_out.append(msg)
+        # Append a message to the GUI console.
+        self.text_out.append(translate_ui_text(msg))
         if self.console_dock.isVisible():
             self.text_out.ensureCursorVisible()
 
     def _warn(self, title: str, message: str, log_message: Optional[str] = None) -> None:
-        """
-        EN:
-        Show a warning dialog and optionally record the same issue in the console.
-
-        PL:
-        Pokazuje ostrzezenie w oknie i opcjonalnie zapisuje je w logu.
-        """
-        # Pokazuje ostrzezenie w GUI i opcjonalnie zapisuje ten sam problem do logu.
+        # Show a warning dialog and optionally record the same issue in the console.
         if log_message:
             self._log(log_message)
-        QMessageBox.warning(self, title, message)
+        QMessageBox.warning(self, translate_ui_text(title), translate_ui_text(message))
 
     def _current_n_obj(self) -> int:
-        """
-        EN:
-        Return the current objective count with a safe fallback.
-
-        PL:
-        Zwraca aktualna liczbe funkcji celu, a gdy formularz jest niegotowy, uzywa 2.
-        """
-        # Zwraca aktualna liczbe celow, nawet gdy formularz jest w trakcie przebudowy.
+        # Return the current objective count with a safe fallback.
         if self._n_obj_widget is not None:
             value = int(self._n_obj_widget.value())
             if value > 0:
@@ -1630,18 +1243,10 @@ class MainWindow(QMainWindow):
         return value if value > 0 else 2
 
     def _parse_float_token(self, token: str) -> Optional[float]:
-        """
-        EN:
-        Parse one numeric token using Polish and C locale conventions.
-
-        PL:
-        Odczytuje jedna liczbe zapisana z przecinkiem albo kropka.
-        """
-        # Odczytuje jedna liczbe z roznych zapisow tekstowych.
+        # Parse one numeric token using Polish and C locale conventions.
         token = token.strip()
         if not token:
             return None
-        # Akceptujemy zapis lokalny i klasyczny zapis z kropka, bo uzytkownik moze wpisac oba.
         for locale in (QLocale(), QLocale(QLocale.Polish, QLocale.Poland), QLocale.c()):
             value, ok = locale.toDouble(token)
             if ok and math.isfinite(value):
@@ -1656,15 +1261,7 @@ class MainWindow(QMainWindow):
         return value if math.isfinite(value) else None
 
     def _parse_ref_point_text(self, text: str) -> Tuple[Optional[list[float]], Optional[str]]:
-        """
-        EN:
-        Parse manual HV reference-point text into a list of finite floats.
-
-        PL:
-        Zamienia tekst punktu odniesienia HV na liste liczb albo komunikat bledu.
-        """
-        # Zamienia tekst z pola ref point na liste liczb albo zwraca komunikat bledu.
-        # Uzytkownik moze podac liczby z przecinkami, kropkami albo w nawiasach.
+        # Parse manual HV reference-point text into a list of finite floats.
         cleaned = text.strip().replace("[", " ").replace("]", " ").replace("(", " ").replace(")", " ").strip()
         if not cleaned:
             return None, None
@@ -1673,38 +1270,23 @@ class MainWindow(QMainWindow):
         elif ";" in cleaned or re.search(r"\s", cleaned):
             tokens = [part.strip().strip(",") for part in re.split(r"[;\s]+", cleaned) if part.strip()]
         elif cleaned.count(",") > 1:
-            return None, "Dla liczb z przecinkiem oddziel wymiary spacją lub ';', np. '0,6 0,7'."
+            return None, "For decimal commas, separate dimensions with spaces or ';', e.g. '0,6 0,7'."
         else:
             tokens = [cleaned]
         values = []
         for token in tokens:
             value = self._parse_float_token(token)
             if value is None:
-                return None, f"Nie można odczytać liczby '{token}'. Użyj np. '0,6 0,7' albo '0.6,0.7'."
+                return None, f"Unable to parse the number '{token}'. Use, for example, '0,6 0,7' or '0.6,0.7'."
             values.append(value)
         return values, None
 
     def _auto_hv_ref_point(self) -> list[float]:
-        """
-        EN:
-        Build the default hypervolume reference point for the current objective count.
-
-        PL:
-        Tworzy automatyczny punkt odniesienia HV dopasowany do liczby celow.
-        """
-        # Tworzy prosty automatyczny ref point dopasowany do liczby celow.
+        # Build the default hypervolume reference point for the current objective count.
         return [1.1 for _ in range(self._current_n_obj())]
 
     def _hv_ref_point_state(self) -> Tuple[bool, Optional[list[float]], str, Optional[str]]:
-        """
-        EN:
-        Return validity, values, mode and error message for the active HV reference point.
-
-        PL:
-        Zwraca, czy punkt HV jest poprawny, jakie ma wartosci, w jakim trybie
-        dziala i jaki blad pokazac uzytkownikowi.
-        """
-        # Zwraca kompletny stan ref pointu: czy jest poprawny, jaka ma wartosc i w jakim trybie pracuje.
+        # Return validity, values, mode, and error message for the active HV reference point.
         if not self.hv_manual_radio.isChecked():
             values = self._auto_hv_ref_point()
             return True, values, "AUTO", None
@@ -1712,21 +1294,14 @@ class MainWindow(QMainWindow):
         if error:
             return False, None, "MANUAL", error
         if values is None:
-            return False, None, "MANUAL", "Podaj ref_point albo wybierz tryb Auto."
+            return False, None, "MANUAL", "Enter a ref_point or switch to Auto mode."
         expected = self._current_n_obj()
         if len(values) != expected:
-            return False, None, "MANUAL", f"ref_point ma długość {len(values)}, oczekiwano M={expected}."
+            return False, None, "MANUAL", f"ref_point has length {len(values)}; expected M={expected}."
         return True, values, "MANUAL", None
 
     def _validate_hv_manual_ref_point(self) -> bool:
-        """
-        EN:
-        Validate manual HV input and mark the field when invalid.
-
-        PL:
-        Sprawdza reczny punkt HV i oznacza pole na czerwono przy bledzie.
-        """
-        # Waliduje reczny ref point i oznacza pole na czerwono przy bledzie.
+        # Validate manual HV input and mark the field when invalid.
         if not self.hv_manual_radio.isChecked():
             self.hv_manual_edit.setStyleSheet("")
             self.hv_manual_edit.setToolTip("")
@@ -1737,31 +1312,17 @@ class MainWindow(QMainWindow):
         return valid
 
     def _update_hv_ref_point_label(self) -> None:
-        """
-        EN:
-        Update the label showing the currently active HV reference point.
-
-        PL:
-        Aktualizuje etykiete informujaca, jaki punkt HV jest obecnie aktywny.
-        """
-        # Pokazuje uzytkownikowi, jaki ref point jest teraz aktywny.
+        # Update the label showing the currently active HV reference point.
         valid, values, mode, error = self._hv_ref_point_state()
         if not valid or values is None:
-            self.hv_ref_lbl.setText("HV ref point (aktywny): INVALID")
+            self.hv_ref_lbl.setText("HV ref point (active): INVALID")
             self.hv_ref_lbl.setToolTip(error or "")
             return
-        self.hv_ref_lbl.setText("HV ref point (aktywny): [" + ",".join(f"{v:.4g}" for v in values) + "]")
+        self.hv_ref_lbl.setText("HV ref point (active): [" + ",".join(f"{v:.4g}" for v in values) + "]")
         self.hv_ref_lbl.setToolTip(f"mode={mode}")
 
     def _on_hv_mode_changed(self, _checked: bool) -> None:
-        """
-        EN:
-        Handle switching between automatic and manual HV reference-point mode.
-
-        PL:
-        Reaguje na przelaczenie miedzy automatycznym i recznym punktem HV.
-        """
-        # Przelacza miedzy automatycznym i recznym trybem ref pointu.
+        # Handle switching between automatic and manual HV reference-point mode.
         manual = self.hv_manual_radio.isChecked()
         self.hv_manual_edit.setEnabled(manual)
         if manual and not self.hv_manual_edit.text().strip():
@@ -1770,160 +1331,73 @@ class MainWindow(QMainWindow):
         self._update_run_button_state()
 
     def _on_hv_manual_changed(self, _text: str) -> None:
-        """
-        EN:
-        Revalidate manual HV text after each edit.
-
-        PL:
-        Odswieza walidacje recznego punktu HV po kazdej zmianie tekstu.
-        """
-        # Odswieza walidacje i etykiete po kazdej zmianie tekstu ref pointu.
+        # Revalidate and refresh the manual HV reference-point display.
         self._update_hv_ref_point_label()
         self._update_run_button_state()
 
     def _on_live_updates_toggled(self, checked: bool) -> None:
-        """
-        EN:
-        Toggle live plot updates during optimization.
-
-        PL:
-        Wlacza albo wylacza odswiezanie wykresu w trakcie obliczen.
-        """
-        # Wlacza lub wylacza odswiezanie wykresu po kazdej generacji.
+        # Toggle live plot updates during optimization.
         self._log(f"live_updates={checked}")
         self._render_plot()
 
     def _update_run_button_state(self) -> None:
-        """
-        EN:
-        Enable Start only when no run is active and HV configuration is valid.
-
-        PL:
-        Wlacza Start tylko wtedy, gdy nic nie dziala i punkt HV jest poprawny.
-        """
-        # Blokuje start, gdy cos juz dziala albo ref point jest niepoprawny.
-        self.run_btn.setEnabled(not (self._thread and self._thread.isRunning()) and self._validate_hv_manual_ref_point())
+        # Enable Start only when no run is active and HV configuration is valid.
+        self.run_btn.setEnabled(
+            not (self._thread and self._thread.isRunning()) and self._validate_hv_manual_ref_point()
+        )
 
     def _update_plot_status(self, payload: Optional[dict] = None, message: Optional[str] = None) -> None:
-        """
-        EN:
-        Refresh the plot or placeholder status after generation updates.
-
-        PL:
-        Odswieza wykres albo komunikat zastepczy po zmianie danych.
-        """
-        # Aktualizuje obszar wykresu albo komunikat zastepczy dla problemow > 3D.
+        # Refresh the plot or placeholder status after generation updates.
         if self._plot_n_obj in (2, 3):
             self._render_plot()
             return
         if message:
-            self._plot_placeholder.setText(message)
+            self._plot_placeholder.setText(translate_ui_text(message))
             return
         if payload:
             self._plot_placeholder.setText(
-                f"Podgląd Pareto niedostępny dla {self._plot_n_obj or '?'} celów. "
+                f"Pareto preview is unavailable for {self._plot_n_obj or '?'} objectives. "
                 f"Gen={self._fmt_int(payload.get('n_gen'))}"
             )
             return
-        self._set_plot_message("Brak wykresu - uruchom optymalizację")
+        self._set_plot_message("No plot available. Start an optimization run.")
 
     def _fmt_int(self, value: Optional[int]) -> str:
-        """
-        EN:
-        Format optional integers for labels and table cells.
-
-        PL:
-        Formatuje liczby calkowite do wyswietlenia, a braki pokazuje jako `-`.
-        """
-        # Formatuje liczby calkowite do tabeli i etykiet, zachowujac `-` dla brakow.
+        # Format optional integers for labels and table cells.
         try:
             return "-" if value is None else str(int(value))
         except (TypeError, ValueError):
             return "-"
 
-    def _shape_text(self, value: Optional[Any]) -> str:
-        """
-        EN:
-        Return a compact textual representation of an array-like object's shape.
-
-        PL:
-        Zwraca krotki tekst opisujacy rozmiar danych.
-        """
-        if value is None:
-            return "None"
-        shape = getattr(value, "shape", None)
-        return "x".join(str(part) for part in shape) if shape is not None else type(value).__name__
-
     def _fmt_metric(self, value: Optional[float]) -> str:
-        """
-        EN:
-        Format optional metric values with stable precision for the GUI.
-
-        PL:
-        Formatuje metryke jako krotki tekst, a brak wartosci pokazuje jako `-`.
-        """
-        # Formatuje metryki zmiennoprzecinkowe w stabilny, krotki sposob.
+        # Format optional metric values with stable precision for the GUI.
         try:
             return "-" if value is None else f"{float(value):.10g}"
         except (TypeError, ValueError):
             return "-"
 
     def _update_metrics_label(self, payload: Optional[dict]) -> None:
-        """
-        EN:
-        Update the compact metrics summary label.
-
-        PL:
-        Odswieza krotkie podsumowanie metryk pod przyciskami.
-        """
-        # Odswieza pasek z metrykami zarejestrowanymi w module metrics.
+        # Update the compact metrics summary label.
         self.metrics_lbl.setText(self._metrics_label_text(payload or {}))
 
     def _metrics_label_text(self, payload: Mapping[str, Any]) -> str:
-        """
-        EN:
-        Build one-line metric summary text from a payload.
-
-        PL:
-        Tworzy tekst z najwazniejszymi metrykami dla aktualnej generacji.
-        """
+        # Build one-line metric summary text from a payload.
         return " | ".join(
             f"{METRIC_LABELS[key]}: {self._fmt_metric(payload.get(key))}" for key in METRIC_DISPLAY_ORDER
         )
 
     def _clear_table(self) -> None:
-        """
-        EN:
-        Clear the generation-history metrics table.
-
-        PL:
-        Czyści tabele historii generacji.
-        """
-        # Czysci cala tabele historii generacji.
+        # Clear the generation-history metrics table.
         self._table.setRowCount(0)
         self._last_gen_appended = None
 
     def _should_scroll_table(self) -> bool:
-        """
-        EN:
-        Decide whether the metrics table should remain scrolled to the newest row.
-
-        PL:
-        Sprawdza, czy po dodaniu wiersza tabela ma przewinac sie na dol.
-        """
-        # Sprawdza, czy po dopisaniu wiersza tabela powinna zostac przewinieta na dol.
+        # Return whether the metrics table should remain scrolled to the newest row.
         bar = self._table.verticalScrollBar()
         return self._table.rowCount() == 0 or bar.value() >= bar.maximum() - 2
 
     def _append_generation_row(self, payload: dict) -> None:
-        """
-        EN:
-        Append one generation's counters and metrics to the history table.
-
-        PL:
-        Dodaje do tabeli jeden wiersz z licznikami i metrykami generacji.
-        """
-        # Dopisuje jeden wiersz z danymi generacji do tabeli wynikow.
+        # Append one generation's counters and metrics to the history table.
         should_scroll = self._should_scroll_table()
         row = self._table.rowCount()
         self._table.insertRow(row)
@@ -1946,14 +1420,7 @@ class MainWindow(QMainWindow):
             self._table.verticalScrollBar().setValue(self._table.verticalScrollBar().maximum())
 
     def _append_last_payload_once(self, payload: Mapping[str, Any]) -> None:
-        """
-        EN:
-        Append the final payload only if it was not already recorded.
-
-        PL:
-        Dopisuje ostatnia generacje tylko wtedy, gdy nie ma jej jeszcze w tabeli.
-        """
-        # Dopisuje finalny payload tylko wtedy, gdy nie trafil juz do tabeli.
+        # Append the final payload only if it was not already recorded.
         last_gen = payload.get("n_gen")
         if last_gen is not None and last_gen != self._last_gen_appended:
             self._append_generation_row(dict(payload))
@@ -1961,14 +1428,7 @@ class MainWindow(QMainWindow):
             self._append_generation_row(dict(payload))
 
     def _metrics_table_data(self) -> Tuple[list[str], list[list[str]]]:
-        """
-        EN:
-        Extract headers and rows from the metrics table for export.
-
-        PL:
-        Pobiera naglowki i dane z tabeli metryk do zapisania w pliku.
-        """
-        # Pobiera aktualne naglowki i wiersze z tabeli metryk.
+        # Extract headers and rows from the metrics table for export.
         headers: list[str] = []
         for col in range(self._table.columnCount()):
             item = self._table.horizontalHeaderItem(col)
@@ -1984,20 +1444,12 @@ class MainWindow(QMainWindow):
         return headers, rows
 
     def _export_metrics_table(self) -> None:
-        """
-        EN:
-        Export the current metrics table to an XLSX file when it contains data.
-
-        PL:
-        Zapisuje tabele metryk do pliku Excel, jesli sa w niej jakiekolwiek wyniki.
-        """
-        # Zapisuje historie metryk po zakonczeniu przebiegu.
+        # Export the current metrics table to an XLSX file when it contains data.
         if self._table.rowCount() <= 0:
-            self._log("Eksport metryk pominięty: tabela historii jest pusta.")
+            self._log("Metrics export skipped: the history table is empty.")
             return
         headers, rows = self._metrics_table_data()
         project_root = Path(__file__).resolve().parents[2]
-        # Nazwa pliku dostaje algorytm, problem i aktualny czas.
         path = self._run_metrics_export_path or metrics_export_path(
             project_root,
             self._run_algorithm_name or self.alg_combo.currentText(),
@@ -2006,18 +1458,12 @@ class MainWindow(QMainWindow):
         try:
             saved_path = write_xlsx_table(path, headers, rows)
         except (OSError, ValueError, zipfile.BadZipFile) as exc:
-            self._log(f"Eksport metryk nie powiódł się: {exc!r}")
+            self._log(f"Metrics export failed: {exc!r}")
             return
-        self._log(f"Eksport metryk zapisany: {saved_path}")
+        self._log(f"Metrics export saved: {saved_path}")
 
     def _xlsx_value(self, value: Any) -> object:
-        """
-        EN:
-        Normalize values before storing them in a worksheet cell.
-
-        PL:
-        Przygotowuje wartosc do zapisu w komorce arkusza.
-        """
+        # Normalize values before storing them in a worksheet cell.
         if value is None:
             return ""
         if isinstance(value, np.generic):
@@ -2029,14 +1475,7 @@ class MainWindow(QMainWindow):
         return numeric if math.isfinite(numeric) else ""
 
     def _solution_table_data(self, payload: Mapping[str, Any]) -> Tuple[list[str], list[list[object]]]:
-        """
-        EN:
-        Build spreadsheet headers and rows from the final nondominated front.
-
-        PL:
-        Buduje naglowki i wiersze arkusza z finalnego frontu niezdominowanego.
-        """
-        # Kolumny f1..fM wynikaja z rzeczywistej liczby funkcji celu w danych.
+        # Build spreadsheet headers and rows from the final nondominated front.
         raw_F = payload.get("feasible_nd_F")
         try:
             f_raw = np.asarray(raw_F, dtype=float) if raw_F is not None else np.empty((0, self._current_n_obj()))
@@ -2077,48 +1516,36 @@ class MainWindow(QMainWindow):
         return headers, rows
 
     def _export_solution_table(self, payload: Mapping[str, Any]) -> None:
-        """
-        EN:
-        Export final nondominated points to the project solution-table directory.
-
-        PL:
-        Zapisuje finalne punkty niezdominowane do katalogu tabel rozwiazan.
-        """
+        # Export final nondominated points to the project solution-table directory.
         project_root = Path(__file__).resolve().parents[2]
         algorithm_name = self._run_algorithm_name or self.alg_combo.currentText()
         problem_name = self._run_problem_name or self.problem_combo.currentText()
         path = self._run_solutions_export_path or solutions_export_path(project_root, algorithm_name, problem_name)
         if self._nd_solution_sheets:
             sheets = [
-                (f"Epoka {epoch}", headers, rows)
+                (f"Epoch {epoch}", headers, rows)
                 for epoch, (headers, rows) in sorted(self._nd_solution_sheets.items())
             ]
         else:
             headers, rows = self._solution_table_data(payload)
-            sheets = [("Rozwiazania", headers, rows)]
+            sheets = [("Solutions", headers, rows)]
         try:
             saved_path = write_xlsx_workbook(path, sheets)
             created = saved_path.is_file() and saved_path.stat().st_size > 0
         except (OSError, ValueError, zipfile.BadZipFile) as exc:
-            self._log(f"Eksport punktów niezdominowanych nie powiódł się: {exc!r}")
+            self._log(f"Nondominated-point export failed: {exc!r}")
             return
         if not created:
-            self._log(f"Eksport punktów niezdominowanych nie utworzył pliku: {saved_path}")
+            self._log(f"Nondominated-point export did not create a file: {saved_path}")
             return
 
         total_rows = sum(len(rows) for _sheet_name, _headers, rows in sheets)
-        self._log(f"Utworzony plik Excel z punktami niezdominowanymi: {saved_path}")
-        self._log(f"Liczba zapisanych punktów: {total_rows}")
-        self._log(f"Dane pochodzą z uruchomienia: {algorithm_name} + {problem_name}")
+        self._log(f"Created Excel file with nondominated points: {saved_path}")
+        self._log(f"Number of saved points: {total_rows}")
+        self._log(f"Data source run: {algorithm_name} + {problem_name}")
 
     def _export_nondominated_solutions_for_epoch(self, payload: Mapping[str, Any]) -> None:
-        """
-        EN:
-        Export nondominated solutions for the current epoch when the selected mode requires it.
-
-        PL:
-        Zapisuje front niezdominowany dla biezacej epoki, jesli wymaga tego wybrany tryb.
-        """
+        # Export nondominated solutions for the current epoch when the selected mode requires it.
         epoch = payload.get("n_gen")
         if not should_save_nondominated_solutions_for_epoch(epoch, self._run_nd_save_mode, self._run_nd_save_step):
             return
@@ -2133,38 +1560,49 @@ class MainWindow(QMainWindow):
         try:
             self._export_solution_table(payload)
         except Exception as exc:
-            self._log(f"Eksport punktów niezdominowanych dla epoki {epoch_number} nie powiódł się: {exc!r}")
+            self._log(f"Nondominated-point export for epoch {epoch_number} failed: {exc!r}")
             return
-        self._log(f"Zapisano punkty niezdominowane w arkuszu dla epoki {epoch_number}.")
+        self._log(f"Saved nondominated points in the worksheet for epoch {epoch_number}.")
+
+    def _export_nondominated_solutions_for_final_epoch(self, payload: Mapping[str, Any]) -> None:
+        # Export nondominated solutions for the final epoch when the selected mode requires it.
+        epoch = payload.get("n_gen")
+        if not should_save_nondominated_solutions_for_epoch(
+            epoch,
+            self._run_nd_save_mode,
+            self._run_nd_save_step,
+            is_final=True,
+        ):
+            return
+        try:
+            epoch_number = int(epoch)
+        except (TypeError, ValueError):
+            return
+        if epoch_number in self._nd_solution_sheets:
+            return
+        headers, rows = self._solution_table_data(payload)
+        self._nd_solution_sheets[epoch_number] = (list(headers), list(rows))
+        try:
+            self._export_solution_table(payload)
+        except Exception as exc:
+            self._log(f"Nondominated-point export for the final epoch {epoch_number} failed: {exc!r}")
+            return
+        self._log(f"Saved nondominated points for the final epoch {epoch_number}.")
 
     def _validated_int(self, value: Any, label: str, minimum: int) -> Tuple[Optional[int], Optional[str]]:
-        """
-        EN:
-        Validate an integer form value and return an error message instead of raising.
-
-        PL:
-        Sprawdza liczbe calkowita z formularza i zwraca opis bledu dla uzytkownika.
-        """
-        # Sprawdza, czy wartosc daje sie odczytac jako liczba calkowita nie mniejsza od minimum.
+        # Validate an integer form value and return an error message instead of raising.
         if value is None or isinstance(value, bool):
-            return None, f"{label}: brak poprawnej liczby całkowitej."
+            return None, f"{label}: invalid integer value."
         try:
             parsed = int(value)
         except (TypeError, ValueError):
-            return None, f"{label}: brak poprawnej liczby całkowitej."
+            return None, f"{label}: invalid integer value."
         if parsed < minimum:
-            return None, f"{label}: wartość musi być >= {minimum}."
+            return None, f"{label}: value must be >= {minimum}."
         return parsed, None
 
     def _collect_run_args(self) -> Tuple[Optional[dict], Optional[str]]:
-        """
-        EN:
-        Collect and validate run-wide settings from the run form.
-
-        PL:
-        Pobiera i sprawdza ustawienia calego uruchomienia, np. seed i liczbe generacji.
-        """
-        # Zbiera i waliduje parametry wspolne dla calego uruchomienia.
+        # Collect and validate run-wide settings from the run form.
         run_values = self.run_form.values()
         seed, error = self._validated_int(run_values.get("seed"), "Seed", 0)
         if error:
@@ -2172,15 +1610,15 @@ class MainWindow(QMainWindow):
         ran = bool(run_values.get("ran", False))
         n_gen = None
         if not ran:
-            n_gen, error = self._validated_int(run_values.get("n_gen"), "Liczba generacji", 1)
+            n_gen, error = self._validated_int(run_values.get("n_gen"), "Number of generations", 1)
             if error:
                 return None, error
-        parallel_workers, error = self._validated_int(run_values.get("parallel_workers"), "Liczba workerow", 1)
+        parallel_workers, error = self._validated_int(run_values.get("parallel_workers"), "Number of workers", 1)
         if error:
             return None, error
         parallel_backend = str(run_values.get("parallel_backend") or "process")
         if parallel_backend not in {"process", "thread"}:
-            return None, f"Backend rownolegly: nieobslugiwana wartosc {parallel_backend!r}."
+            return None, f"Parallel backend: unsupported value {parallel_backend!r}."
         return {
             "seed": seed,
             "n_gen": n_gen,
@@ -2192,43 +1630,21 @@ class MainWindow(QMainWindow):
         }, None
 
     def _collect_algorithm_args(self) -> Tuple[Optional[dict], Optional[str]]:
-        """
-        EN:
-        Collect and lightly validate algorithm-specific form values.
-
-        PL:
-        Pobiera ustawienia algorytmu z formularza i sprawdza podstawowe warunki.
-        """
-        # Zbiera i lokalnie waliduje parametry algorytmu z formularza.
+        # Collect and lightly validate algorithm-specific form values.
         values = self.alg_form.values()
         if "pop_size" in values:
-            pop_size, error = self._validated_int(values.get("pop_size"), "Rozmiar populacji", 1)
+            pop_size, error = self._validated_int(values.get("pop_size"), "Population size", 1)
             if error:
                 return None, error
             values["pop_size"] = pop_size
         return values, None
 
     def _collect_problem_args(self) -> Tuple[dict, Optional[str]]:
-        """
-        EN:
-        Collect current problem form values.
-
-        PL:
-        Pobiera aktualne parametry problemu z formularza.
-        """
-        # Zwraca aktualne parametry problemu w postaci gotowej do przekazania factory.
+        # Collect current problem form values.
         return self.problem_form.values(), None
 
     def _prepare_run_visuals(self) -> None:
-        """
-        EN:
-        Reset run-specific visual state before starting a new optimization.
-
-        PL:
-        Czyści widok poprzedniego przebiegu przed nowym uruchomieniem.
-        """
-        # Czysci widok przed nowym przebiegiem i zostawia podglad problemu, jesli juz istnieje.
-        # Nowy start czysci dane z poprzedniego przebiegu, ale nie kasuje znanej fronty problemu.
+        # Reset run-specific visual state before starting a new optimization.
         self._reset_run_result_state()
         self._run_metrics_export_path = None
         self._run_solutions_export_path = None
@@ -2238,21 +1654,13 @@ class MainWindow(QMainWindow):
         self._render_plot()
 
     def _finish_run(self, status_text: str, last_payload: Optional[dict]) -> None:
-        """
-        EN:
-        Finalize GUI state after completion, cancellation or failure-like early stop.
-
-        PL:
-        Domyka stan GUI po zakonczeniu albo zatrzymaniu obliczen.
-        """
-        # Domyka stan GUI po zakonczeniu, stopie lub normalnym dojsciu do konca.
+        # Finalize GUI state after completion, cancellation, or early stop.
         self._thread = None
         self._set_run_state(status_text, running=False)
-        # Jesli worker zakonczyl sie miedzy emisjami sygnalow, dopinamy ostatni payload tylko raz.
         if isinstance(last_payload, dict) and last_payload:
             self._append_last_payload_once(last_payload)
             self._apply_generation_payload(last_payload)
-            self._export_nondominated_solutions_for_epoch(last_payload)
+            self._export_nondominated_solutions_for_final_epoch(last_payload)
             self._update_metrics_label(last_payload)
             self._update_plot_status(last_payload)
             self._export_metrics_table()
@@ -2262,18 +1670,9 @@ class MainWindow(QMainWindow):
         self._render_plot()
 
     def _on_generation(self, payload: dict) -> None:
-        """
-        EN:
-        Handle a generation payload emitted by the optimization worker.
-
-        PL:
-        Odbiera dane generacji z watku roboczego i aktualizuje wykres, tabele i metryki.
-        """
-        # Odbiera dane z worker-a i aktualizuje wykres, tabele oraz metryki.
+        # Handle a generation payload emitted by the optimization worker.
         if not isinstance(payload, dict):
             return
-        if DEBUG:
-            self._log(f"GEN payload={list(payload.keys())}")
         for message in payload.get("diagnostics") or ():
             self._log(f"GEN diag: {message}")
         self._apply_generation_payload(payload)
@@ -2284,41 +1683,41 @@ class MainWindow(QMainWindow):
             self._update_plot_status(payload)
 
     def start_run(self) -> None:
-        """
-        EN:
-        Validate all forms, create the optimization worker and start the run.
-
-        PL:
-        Sprawdza formularze, tworzy watek roboczy i rozpoczyna optymalizacje.
-        """
-        # Waliduje formularze, tworzy worker i uruchamia optymalizacje.
+        # Validate all forms, create the worker, and start the run.
         if self._thread and self._thread.isRunning():
-            self._log("Start: uruchomienie już trwa.")
+            self._log("Start: a run is already in progress.")
             return
-        # Najpierw walidujemy wszystko lokalnie, zeby nie uruchamiac watku z bledna konfiguracja.
         if not self._validate_hv_manual_ref_point():
-            self._warn("Błędny ref point", self.hv_manual_edit.toolTip() or "Niepoprawny ref_point.", "HV ref_point: start zablokowany.")
+            self._warn(
+                "Invalid ref point",
+                self.hv_manual_edit.toolTip() or "Invalid ref_point.",
+                "HV ref_point: start zablokowany.",
+            )
             return
         problem_key = self.problem_combo.currentData()
         alg_key = self.alg_combo.currentData()
         if not problem_key or not alg_key:
-            self._warn("Brak konfiguracji", "Wybierz problem i algorytm przed uruchomieniem.", "Start: brak wybranego problemu lub algorytmu.")
+            self._warn(
+                "Missing configuration",
+                "Select a problem and an algorithm before starting the run.",
+                "Start: brak wybranego problemu lub algorytmu.",
+            )
             return
         run_args, error = self._collect_run_args()
         if error:
-            self._warn("Błędne dane wejściowe", error, f"Start: {error}")
+            self._warn("Invalid input data", error, f"Start: {error}")
             return
         nd_save_args, error = self._collect_nd_save_args()
         if error:
-            self._warn("Błędne ustawienia zapisu", error, f"Start: {error}")
+            self._warn("Invalid export settings", error, f"Start: {error}")
             return
         algorithm_args, error = self._collect_algorithm_args()
         if error:
-            self._warn("Błędne dane algorytmu", error, f"Start: {error}")
+            self._warn("Invalid algorithm data", error, f"Start: {error}")
             return
         problem_args, error = self._collect_problem_args()
         if error:
-            self._warn("Błędne dane problemu", error, f"Start: {error}")
+            self._warn("Invalid problem data", error, f"Start: {error}")
             return
         _valid_ref_point, ref_point, _mode, _err = self._hv_ref_point_state()
         if ref_point is None:
@@ -2335,7 +1734,7 @@ class MainWindow(QMainWindow):
         self._run_solutions_export_path = next_available_export_path(
             solutions_export_path(project_root, self._run_algorithm_name, self._run_problem_name)
         )
-        self._set_run_state("działa", running=True)
+        self._set_run_state("running", running=True)
         termination_desc = "RAN" if run_args["ran"] else f"n_gen={run_args['n_gen']}"
         parallel_desc = (
             f"{run_args['parallel_backend']}:{run_args['parallel_workers']}"
@@ -2366,7 +1765,6 @@ class MainWindow(QMainWindow):
             str(run_args["parallel_backend"]),
             parent=self,
         )
-        # Sygaly worker-a rozdzielaja aktualizacje na zywo, normalne zakonczenie, stop i blad.
         self._thread.generation.connect(self._on_generation)
         self._thread.done.connect(self._on_run_done)
         self._thread.cancelled.connect(self._on_run_cancelled)
@@ -2374,73 +1772,38 @@ class MainWindow(QMainWindow):
         self._thread.start()
 
     def stop_run(self) -> None:
-        """
-        EN:
-        Request cancellation of the active optimization worker.
-
-        PL:
-        Wysyla prosbe o zatrzymanie aktualnych obliczen.
-        """
-        # Prosi aktywny worker o zatrzymanie po zakonczeniu biezacego kroku.
+        # Request cancellation of the active optimization worker.
         if not self._thread or not self._thread.isRunning():
-            self._log("Stop: brak aktywnego uruchomienia.")
+            self._log("Stop: no active run.")
             return
         self._thread.request_cancel()
-        self.status_lbl.setText("Status: zatrzymywanie")
+        self.status_lbl.setText("Status: stopping")
         self.stop_btn.setEnabled(False)
-        self._log("Stop: wyslano zadanie zatrzymania; oczekiwanie na zakonczenie biezacej generacji.")
+        self._log("Stop: cancellation requested; waiting for the current generation to finish.")
 
     def _on_run_done(self, last_payload: dict) -> None:
-        """
-        EN:
-        Handle normal worker completion.
-
-        PL:
-        Obsluguje normalne zakonczenie optymalizacji.
-        """
-        # Obsluguje normalne zakonczenie optymalizacji.
-        self._finish_run("zakończono", last_payload)
+        # Handle successful completion of the optimization worker.
+        self._finish_run("completed", last_payload)
 
     def _on_run_cancelled(self, last_payload: dict) -> None:
-        """
-        EN:
-        Handle user-requested optimization cancellation.
-
-        PL:
-        Obsluguje zakonczenie po kliknieciu Stop.
-        """
-        # Obsluguje zakonczenie po recznym zatrzymaniu przez uzytkownika.
+        # Handle user-requested cancellation of the optimization worker.
         self._log("Run stopped by user.")
-        self._finish_run("zatrzymano", last_payload)
+        self._finish_run("stopped", last_payload)
 
     def _on_run_failed(self, err: str) -> None:
-        """
-        EN:
-        Handle worker failure and restore the idle GUI state.
-
-        PL:
-        Obsluguje blad optymalizacji i przywraca okno do stanu spoczynku.
-        """
-        # Obsluguje blad worker-a i przywraca GUI do stanu spoczynkowego.
+        # Handle worker failure and restore the idle GUI state.
         self._log(f"Run failed: {err}")
         self._thread = None
-        self._set_run_state("błąd", running=False)
+        self._set_run_state("error", running=False)
         self._update_metrics_label(None)
         self._render_plot()
-        QMessageBox.warning(self, "Błąd optymalizacji", err)
+        QMessageBox.warning(self, "Optimization error", err)
 
 
 def main() -> None:
-    """
-    EN:
-    Create the Qt application, show the main window and enter the event loop.
-
-    PL:
-    Tworzy aplikacje Qt, pokazuje glowne okno i uruchamia petle zdarzen.
-    """
-    # Tworzy aplikacje Qt, pokazuje glowne okno i oddaje sterowanie petli zdarzen.
+    # Create the Qt application, show the main window, and enter the event loop.
     app = QApplication(sys.argv)
-    QLocale.setDefault(QLocale(QLocale.Polish, QLocale.Poland))
+    QLocale.setDefault(QLocale(QLocale.English, QLocale.UnitedStates))
     window = MainWindow()
     window.show()
     sys.exit(app.exec_())

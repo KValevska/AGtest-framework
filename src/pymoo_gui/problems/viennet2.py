@@ -1,14 +1,11 @@
-"""
-EN:
-Viennet2 benchmark problem implementation for pymoo.
-"""
+# Viennet2 benchmark problem implementation for pymoo.
 
 # ------------------------------------------------------------------------------------
-# File: viennet2.py
-# Contents: Viennet2 benchmark problem class for pymoo.
-# What happens here: two-dimensional decision vectors are evaluated into three objective functions.
-# Role in the framework: provides a three-objective continuous benchmark for GUI experiments.
-# Author: mgr inz. Kristina Valevska
+# Module: viennet2.py
+# Summary: Viennet2 benchmark problem class for pymoo.
+# Implementation: two-dimensional decision vectors are evaluated into three objective functions.
+# Responsibility: provides a three-objective continuous benchmark for GUI experiments.
+# Author: Kristina Valevska, MSc Eng.
 # Implementation source: own implementation based on the jMetal benchmark definition.
 # ------------------------------------------------------------------------------------
 
@@ -19,13 +16,8 @@ from pymoo.core.problem import Problem
 
 
 class Viennet2Problem(Problem):
-    """
-    EN:
-    Three-objective Viennet2 benchmark.
-
-    PL:
-    Trojkryterialny problem ciagly z dwiema zmiennymi decyzyjnymi.
-    """
+    # Three-objective Viennet2 benchmark.
+    # Trojkryterialny problem ciagly z dwiema zmiennymi decyzyjnymi.
 
     def __init__(self):
         super().__init__(

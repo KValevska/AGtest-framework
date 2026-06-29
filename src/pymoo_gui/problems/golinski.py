@@ -1,14 +1,11 @@
-"""
-EN:
-Golinski speed reducer benchmark problem implementation for pymoo.
-"""
+# Golinski speed reducer benchmark problem implementation for pymoo.
 
 # ------------------------------------------------------------------------------------
-# File: golinski.py
-# Contents: Golinski benchmark problem class for pymoo.
-# What happens here: decision vectors are evaluated into weight/stress objectives with eleven engineering constraints.
-# Role in the framework: provides a classical constrained engineering benchmark for GUI experiments.
-# Author: mgr inz. Kristina Valevska
+# Module: golinski.py
+# Summary: Golinski benchmark problem class for pymoo.
+# Implementation: decision vectors are evaluated into weight/stress objectives with eleven engineering constraints.
+# Responsibility: provides a classical constrained engineering benchmark for GUI experiments.
+# Author: Kristina Valevska, MSc Eng.
 # Implementation source: own implementation based on benchmark definitions commonly used in the literature.
 # ------------------------------------------------------------------------------------
 
@@ -19,14 +16,8 @@ from pymoo.core.problem import Problem
 
 
 class GolinskiProblem(Problem):
-    """
-    EN:
-    Two-objective constrained Golinski speed-reducer benchmark.
-
-    PL:
-    Klasyczny problem inzynierski z siedmioma zmiennymi i jedenastoma
-    ograniczeniami.
-    """
+    # Two-objective constrained Golinski speed-reducer benchmark.
+    # Klasyczny problem inzynierski z siedmioma zmiennymi i jedenastoma
 
     def __init__(self):
         super().__init__(

@@ -1,17 +1,11 @@
-"""
-EN:
-Public metrics API for quality indicators and spreadsheet export helpers.
-
-PL:
-Udostepnia funkcje liczace metryki oraz zapisujace tabele wynikow do pliku.
-"""
+# Public metrics API for quality indicators and spreadsheet export helpers.
 
 # ------------------------------------------------------------------------------------
-# File: __init__.py
-# Contents: public exports for metrics computation and metrics-table export helpers.
-# What happens here: quality indicators and XLSX export functions are re-exported for GUI modules.
-# Role in the framework: provides a stable metrics API for dissertation experiment reporting.
-# Author: mgr inż. Kristina Valevska
+# Module: __init__.py
+# Summary: public exports for metrics computation and metrics-table export helpers.
+# Implementation: quality indicators and XLSX export functions are re-exported for GUI modules.
+# Responsibility: provides a stable metrics API for dissertation experiment reporting.
+# Author: Kristina Valevska, MSc Eng.
 # ------------------------------------------------------------------------------------
 
 from __future__ import annotations

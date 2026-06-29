@@ -1,17 +1,12 @@
-"""
-EN:
-UF benchmark family adapters for pymoo.
-
-PL:
-Definiuje adaptery problemow UF1-UF10 z biblioteki Platypus.
-"""
+# UF benchmark family adapters for pymoo.
+# Definiuje adaptery problemow UF1-UF10 z biblioteki Platypus.
 
 # ------------------------------------------------------------------------------------
-# File: uf.py
-# Contents: UF benchmark family wrappers exposing Platypus problems as pymoo problems.
-# What happens here: Platypus UF problem instances are adapted to pymoo's `Problem` interface.
-# Role in the framework: provides the CEC2009 UF benchmark family in the same GUI workflow as local problems.
-# Author: mgr inz. Kristina Valevska
+# Module: uf.py
+# Summary: UF benchmark family wrappers exposing Platypus problems as pymoo problems.
+# Implementation: Platypus UF problem instances are adapted to pymoo's `Problem` interface.
+# Responsibility: provides the CEC2009 UF benchmark family in the same GUI workflow as local problems.
+# Author: Kristina Valevska, MSc Eng.
 # Implementation source: Platypus
 # ------------------------------------------------------------------------------------
 
@@ -50,13 +45,8 @@ def _platypus_uf_class(name: str) -> Type[Any]:
 
 
 class PlatypusUFProblem(Problem):
-    """
-    EN:
-    Adapt one Platypus UF benchmark to pymoo's `Problem` interface.
-
-    PL:
-    Tlumaczy wybrany problem UF z Platypus na interfejs oczekiwany przez GUI.
-    """
+    # Adapt one Platypus UF benchmark to pymoo's `Problem` interface.
+    # Tlumaczy wybrany problem UF z Platypus na interfejs oczekiwany przez GUI.
 
     def __init__(self, uf_name: str, n_var: int = 30):
         uf_class = _platypus_uf_class(uf_name)

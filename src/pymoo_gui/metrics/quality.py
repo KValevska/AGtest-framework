@@ -1,13 +1,11 @@
-"""
-EN: Quality indicator implementations for Pareto-front approximations produced by the GUI.
-"""
+# Quality indicator implementations for Pareto-front approximations produced by the GUI.
 
 # ------------------------------------------------------------------------------------
-# File: quality.py
-# Contents: metric result model and implementations of HV, GD, IGD, Spread, Delta and KKTPM calculations.
-# What happens here: objective and decision data are normalized, filtered for feasibility and evaluated with indicators.
-# Role in the framework: computes quantitative quality measures for dissertation optimization results.
-# Author: mgr inż. Kristina Valevska
+# Module: quality.py
+# Summary: metric result model and implementations of HV, GD, IGD, Spread, Delta and KKTPM calculations.
+# Implementation: objective and decision data are normalized, filtered for feasibility and evaluated with indicators.
+# Responsibility: computes quantitative quality measures for dissertation optimization results.
+# Author: Kristina Valevska, MSc Eng.
 # ------------------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -36,13 +34,7 @@ METRIC_LABELS = {
 
 @dataclass
 class MetricResult:
-    """
-    EN:
-    Container for all quality indicators computed for one generation or final run.
-
-    PL:
-    Przechowuje wartosci metryk policzonych dla jednej generacji albo wyniku koncowego.
-    """
+    # Container for all quality indicators computed for one generation or final run.
 
     hv: Optional[float] = None
     igd: Optional[float] = None
@@ -58,13 +50,7 @@ class MetricResult:
 
 
 def _safe_float(x) -> Optional[float]:
-    """
-    EN:
-    Convert a value to `float`, returning `None` when conversion is unsafe.
-
-    PL:
-    Probuje zamienic wartosc na liczbe zmiennoprzecinkowa; przy bledzie zwraca `None`.
-    """
+    # Convert a value to `float`, returning `None` when conversion is unsafe.
     try:
         return float(x)
     except (TypeError, ValueError):
@@ -72,14 +58,7 @@ def _safe_float(x) -> Optional[float]:
 
 
 def _as_2d(arr: Optional[np.ndarray], n_obj: Optional[int] = None) -> Optional[np.ndarray]:
-    """
-    EN:
-    Normalize objective data to a two-dimensional matrix with optional objective-count validation.
-
-    PL:
-    Zamienia dane celow na tabele liczb i opcjonalnie sprawdza, czy ma oczekiwana
-    liczbe kolumn.
-    """
+    # Normalize objective data to a two-dimensional matrix with optional objective-count validation.
     if arr is None:
         return None
     try:
@@ -98,13 +77,7 @@ def _as_2d(arr: Optional[np.ndarray], n_obj: Optional[int] = None) -> Optional[n
 
 
 def _as_decision_matrix(values: Optional[np.ndarray], n_var: Optional[int] = None) -> Optional[np.ndarray]:
-    """
-    EN:
-    Normalize decision vectors to a two-dimensional matrix.
-
-    PL:
-    Zamienia zmienne decyzyjne na tabele, w ktorej kazdy wiersz jest jednym rozwiazaniem.
-    """
+    # Normalize decision vectors to a two-dimensional matrix.
     if values is None:
         return None
     try:
@@ -121,26 +94,13 @@ def _as_decision_matrix(values: Optional[np.ndarray], n_var: Optional[int] = Non
 
 
 def _finite_rows(arr: np.ndarray) -> np.ndarray:
-    """
-    EN:
-    Keep only rows whose values are finite numbers.
-
-    PL:
-    Usuwa wiersze zawierajace `NaN` albo nieskonczonosc.
-    """
+    # Keep only rows whose values are finite numbers.
     mask = np.isfinite(arr).all(axis=1)
     return arr[mask]
 
 
 def _safe_solve(A: np.ndarray, b: np.ndarray) -> Optional[np.ndarray]:
-    """
-    EN:
-    Solve a linear system, falling back to least squares for singular matrices.
-
-    PL:
-    Rozwiazuje uklad rownan; jesli jest trudny do rozwiazania dokladnie, probuje
-    metody najmniejszych kwadratow.
-    """
+    # Solve a linear system, falling back to least squares for singular matrices.
     try:
         return np.linalg.solve(A, b)
     except np.linalg.LinAlgError:
@@ -151,13 +111,7 @@ def _safe_solve(A: np.ndarray, b: np.ndarray) -> Optional[np.ndarray]:
 
 
 def _problem_n_ieq_constr(problem: Any) -> int:
-    """
-    EN:
-    Read the number of inequality constraints from compatible pymoo problem attributes.
-
-    PL:
-    Pobiera liczbe ograniczen nierownosciowych z problemu, niezaleznie od wersji pymoo.
-    """
+    # Read the number of inequality constraints from compatible pymoo problem attributes.
     for name in ("n_ieq_constr", "n_constr"):
         try:
             value = getattr(problem, name, None)
@@ -169,22 +123,9 @@ def _problem_n_ieq_constr(problem: Any) -> int:
 
 
 def _problem_bounds(problem: Any, n_var: int) -> tuple[np.ndarray, np.ndarray]:
-    """
-    EN:
-    Return lower and upper decision-variable bounds, using infinities when missing.
-
-    PL:
-    Pobiera dolne i gorne granice zmiennych; gdy ich brakuje, zastepuje je
-    nieskonczonoscia.
-    """
+    # Return lower and upper decision-variable bounds, using infinities when missing.
     def _bound(name: str, fill: float) -> np.ndarray:
-        """
-        EN:
-        Normalize one bound vector to the expected variable count.
-
-        PL:
-        Dopasowuje jedna granice zmiennych do wymaganej liczby kolumn.
-        """
+        # Normalize one bound vector to the expected variable count.
         value = getattr(problem, name, None)
         if value is None:
             return np.full(n_var, fill, dtype=float)
@@ -203,13 +144,7 @@ def _problem_bounds(problem: Any, n_var: int) -> tuple[np.ndarray, np.ndarray]:
 
 
 def _evaluate_fg(problem: Any, X: np.ndarray) -> Optional[tuple[np.ndarray, np.ndarray]]:
-    """
-    EN:
-    Evaluate objective and inequality-constraint matrices for KKTPM support.
-
-    PL:
-    Liczy funkcje celu i ograniczenia potrzebne do metryki KKTPM.
-    """
+    # Evaluate objective and inequality-constraint matrices for KKTPM support.
     try:
         F, G = problem.evaluate(X, return_values_of=["F", "G"])
     except Exception:
@@ -233,13 +168,7 @@ def _evaluate_fg(problem: Any, X: np.ndarray) -> Optional[tuple[np.ndarray, np.n
 
 
 def _valid_derivative(values: Any, expected_shape: tuple[int, int, int]) -> Optional[np.ndarray]:
-    """
-    EN:
-    Validate analytical derivative arrays returned by a problem.
-
-    PL:
-    Sprawdza, czy pochodne zwrocone przez problem maja poprawny ksztalt i liczby.
-    """
+    # Validate analytical derivative arrays returned by a problem.
     try:
         arr = np.asarray(values, dtype=float)
     except (TypeError, ValueError):
@@ -256,14 +185,7 @@ def _finite_difference_derivatives(
     G: np.ndarray,
     eps: float = FINITE_DIFF_EPS,
 ) -> tuple[Optional[np.ndarray], Optional[np.ndarray]]:
-    """
-    EN:
-    Approximate objective and constraint derivatives with finite differences.
-
-    PL:
-    Przybliza pochodne numerycznie, gdy problem nie udostepnia ich bezposrednio.
-    """
-    # Liczy pochodne numerycznie, gdy problem nie daje dF/dG.
+    # Approximate objective and constraint derivatives with finite differences.
     n_solutions, n_var = X.shape
     n_obj = F.shape[1]
     n_ieq = G.shape[1] if G.ndim == 2 else 0
@@ -323,15 +245,7 @@ def _evaluate_kktpm_inputs(
     problem: Any,
     finite_diff_eps: float = FINITE_DIFF_EPS,
 ) -> Optional[tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]]:
-    """
-    EN:
-    Collect objectives, constraints and derivatives required by the KKTPM calculation.
-
-    PL:
-    Przygotowuje wszystkie dane potrzebne do policzenia KKTPM: cele, ograniczenia
-    i pochodne.
-    """
-    # Zbiera F, G oraz gradienty wymagane przez KKTPM.
+    # Collect objectives, constraints and derivatives required by the KKTPM calculation.
     try:
         F, G, raw_dF, raw_dG = problem.evaluate(X, return_values_of=["F", "G", "dF", "dG"])
     except Exception:
@@ -364,35 +278,18 @@ def _evaluate_kktpm_inputs(
 
 
 def _calc_cv(G: np.ndarray) -> np.ndarray:
-    """
-    EN:
-    Compute scalar constraint violation from inequality-constraint values.
-
-    PL:
-    Zamienia wartosci ograniczen na jedna liczbe pokazujaca, jak mocno rozwiazanie
-    lamie ograniczenia.
-    """
+    # Compute scalar constraint violation from inequality-constraint values.
     if G.ndim != 2 or G.shape[1] == 0:
         return np.zeros(G.shape[0], dtype=float)
     return np.sum(np.maximum(G, 0.0), axis=1)
 
 
 def compute_spread(F: np.ndarray) -> Optional[float]:
-    """
-    EN:
-    Compute a normalized diversity spread score from objective-space distances.
-
-    PL:
-    Liczy, jak szeroko i rownomiernie rozwiazania sa rozlozone w przestrzeni celow.
-
-    Args:
-        F (np.ndarray): EN: Objective matrix.
-                        PL: Tabela wartosci funkcji celu.
-
-    Returns:
-        Optional[float]: EN: Diversity score, or `None` for invalid data.
-                         PL: Wartosc metryki albo `None`, gdy danych nie da sie policzyc.
-    """
+    # Compute a normalized diversity spread score from objective-space distances.
+    # Args:
+    # F (np.ndarray): Objective matrix.
+    # Returns:
+    # Optional[float]: Diversity score, or `None` for invalid data.
     A = _as_2d(F)
     if A is None:
         return None
@@ -406,11 +303,9 @@ def compute_spread(F: np.ndarray) -> Optional[float]:
     active = ranges > 0.0
     if not np.any(active):
         return 0.0
-    # Normalizacja usuwa wplyw skali poszczegolnych celow.
     normalized = np.zeros_like(A, dtype=float)
     normalized[:, active] = (A[:, active] - np.min(A[:, active], axis=0)) / ranges[active]
 
-    # Bierzemy tylko gorny trojkat macierzy odleglosci, bez przekatnej.
     diff = normalized[:, None, :] - normalized[None, :, :]
     distances = np.sqrt(np.sum(diff * diff, axis=2))
     upper = distances[np.triu_indices(A.shape[0], k=1)]
@@ -420,14 +315,7 @@ def compute_spread(F: np.ndarray) -> Optional[float]:
 
 
 def compute_delta(F: np.ndarray, pareto_front: np.ndarray) -> Optional[float]:
-    """
-    EN:
-    Compute the classical NSGA-II Delta diversity metric.
-
-    PL:
-    Liczy metryke Delta dla dwoch celow. Pokazuje, czy rozwiazania sa rowno
-    rozlozone na froncie i czy dochodza do jego skrajnych punktow. Mniej znaczy lepiej.
-    """
+    # Compute the classical NSGA-II Delta diversity metric.
     A = _as_2d(F, n_obj=2)
     pf = _as_2d(pareto_front, n_obj=2)
     if A is None or pf is None:
@@ -441,7 +329,6 @@ def compute_delta(F: np.ndarray, pareto_front: np.ndarray) -> Optional[float]:
 
     A = A[np.lexsort((A[:, 1], A[:, 0]))]
     pf = pf[np.lexsort((pf[:, 1], pf[:, 0]))]
-    # Klasyczna Delta uzywa odstepow miedzy kolejnymi punktami frontu.
     distances = np.sqrt(np.sum(np.diff(A, axis=0) ** 2, axis=1))
     d_mean = float(np.mean(distances))
     d_first = float(np.linalg.norm(A[0] - pf[0]))
@@ -461,32 +348,16 @@ def compute_kktpm(
     rho: float = 1e-3,
     finite_diff_eps: float = FINITE_DIFF_EPS,
 ) -> Optional[np.ndarray]:
-    """
-    EN:
-    Compute KKTPM for decision vectors.
-
-    PL:
-    Liczy KKTPM, czyli miare bliskosci rozwiazania do warunkow optymalnosci.
-    Im mniejsza wartosc, tym bardziej rozwiazanie przypomina punkt optymalny Pareto.
-
-    Args:
-        X (np.ndarray): EN: Decision-variable matrix.
-                        PL: Tabela zmiennych decyzyjnych rozwiazan.
-        problem (Any): EN: pymoo-like problem providing objectives and constraints.
-                       PL: Problem, dla ktorego oceniane sa rozwiazania.
-        ideal (Optional[np.ndarray]): EN: Optional ideal objective point.
-                                      PL: Opcjonalny idealny punkt odniesienia.
-        utopian_eps (float): EN: Offset applied to the ideal point.
-                             PL: Male przesuniecie punktu idealnego.
-        rho (float): EN: Regularization parameter in KKTPM equations.
-                     PL: Parametr stabilizujacy obliczenia.
-        finite_diff_eps (float): EN: Step size for finite-difference derivatives.
-                                 PL: Wielkosc kroku do numerycznych pochodnych.
-
-    Returns:
-        Optional[np.ndarray]: EN: KKTPM value per solution, or `None` when unavailable.
-                              PL: Wartosc KKTPM dla kazdego rozwiazania albo `None`.
-    """
+    # Compute KKTPM for decision vectors.
+    # Args:
+    # X (np.ndarray): Decision-variable matrix.
+    # problem (Any): pymoo-like problem providing objectives and constraints.
+    # ideal (Optional[np.ndarray]): Optional ideal objective point.
+    # utopian_eps (float): Offset applied to the ideal point.
+    # rho (float): Regularization parameter in KKTPM equations.
+    # finite_diff_eps (float): Step size for finite-difference derivatives.
+    # Returns:
+    # Optional[np.ndarray]: KKTPM value per solution, or `None` when unavailable.
     try:
         n_var = int(getattr(problem, "n_var"))
         n_obj = int(getattr(problem, "n_obj"))
@@ -521,7 +392,6 @@ def compute_kktpm(
 
     n_ieq_constr = min(_problem_n_ieq_constr(problem), G.shape[1])
     values = np.full(X_arr.shape[0], np.inf, dtype=float)
-    # Dla punktow niewykonalnych KKTPM zwraca kare 1 + CV.
     cv = _calc_cv(G[:, :n_ieq_constr])
 
     for i in range(X_arr.shape[0]):
@@ -588,13 +458,7 @@ def compute_kktpm(
 
 
 def _feasibility_mask_from_cv(cv: Optional[np.ndarray]) -> Optional[np.ndarray]:
-    """
-    EN:
-    Convert constraint-violation data to a boolean feasible-row mask.
-
-    PL:
-    Tworzy maske rozwiazan, ktore spelniaja ograniczenia.
-    """
+    # Convert constraint-violation data to a boolean feasible-row mask.
     if cv is None:
         return None
     try:
@@ -619,39 +483,19 @@ def compute_metrics(
     kktpm_ideal: Optional[np.ndarray] = None,
     delta_supported: bool = False,
 ) -> MetricResult:
-    """
-    EN:
-    Compute GD, IGD, GD+, IGD+, Spread, Delta, HV and optionally KKTPM.
-
-    PL:
-    Liczy zestaw metryk jakosci wynikow. Czesc z nich porownuje wynik ze znanym
-    frontem Pareto, HV uzywa punktu odniesienia, a KKTPM wymaga takze zmiennych
-    decyzyjnych i problemu.
-
-    Args:
-        F (np.ndarray): EN: Objective matrix for evaluated solutions.
-                        PL: Wartosci funkcji celu dla rozwiazan.
-        pareto_front (Optional[np.ndarray]): EN: Known reference Pareto front.
-                                             PL: Znany front Pareto do porownania.
-        cv (Optional[np.ndarray]): EN: Constraint-violation values.
-                                   PL: Informacje o naruszeniu ograniczen.
-        ref_point (Optional[np.ndarray]): EN: Hypervolume reference point.
-                                          PL: Punkt odniesienia dla HV.
-        n_obj (Optional[int]): EN: Expected objective count.
-                               PL: Oczekiwana liczba funkcji celu.
-        X (Optional[np.ndarray]): EN: Decision-variable matrix for KKTPM.
-                                  PL: Zmienne decyzyjne potrzebne do KKTPM.
-        problem (Any): EN: Problem instance used for KKTPM.
-                       PL: Problem potrzebny do policzenia KKTPM.
-        kktpm_ideal (Optional[np.ndarray]): EN: Optional ideal point for KKTPM.
-                                            PL: Opcjonalny punkt idealny do KKTPM.
-        delta_supported (bool): EN: Whether Delta is meaningful for this algorithm/run.
-                                PL: Czy metryka Delta ma byc liczona dla tego przebiegu.
-
-    Returns:
-        MetricResult: EN: Object containing all computed or unavailable metric values.
-                      PL: Obiekt z policzonymi metrykami albo pustymi polami.
-    """
+    # Compute GD, IGD, GD+, IGD+, Spread, Delta, HV and optionally KKTPM.
+    # Args:
+    # F (np.ndarray): Objective matrix for evaluated solutions.
+    # pareto_front (Optional[np.ndarray]): Known reference Pareto front.
+    # cv (Optional[np.ndarray]): Constraint-violation values.
+    # ref_point (Optional[np.ndarray]): Hypervolume reference point.
+    # n_obj (Optional[int]): Expected objective count.
+    # X (Optional[np.ndarray]): Decision-variable matrix for KKTPM.
+    # problem (Any): Problem instance used for KKTPM.
+    # kktpm_ideal (Optional[np.ndarray]): Optional ideal point for KKTPM.
+    # delta_supported (bool): Whether Delta is meaningful for this algorithm/run.
+    # Returns:
+    # MetricResult: Object containing all computed or unavailable metric values.
     A = _as_2d(F, n_obj=n_obj)
     if A is None:
         return MetricResult()
@@ -667,7 +511,6 @@ def compute_metrics(
 
     feas_mask = _feasibility_mask_from_cv(cv)
     feasible_empty = False
-    # Wszystkie metryki liczymy tylko na wierszach wykonalnych i skonczonych.
     if feas_mask is not None and np.asarray(feas_mask).reshape(-1).shape[0] == A.shape[0]:
         feas_mask = np.asarray(feas_mask, dtype=bool).reshape(-1)
         if np.any(feas_mask):
@@ -686,7 +529,6 @@ def compute_metrics(
     if A.shape[0] == 0:
         return result
 
-    # Spread nie wymaga znanego frontu Pareto.
     result.spread = compute_spread(A)
 
     pf = _as_2d(pareto_front, n_obj=n_obj)
@@ -763,13 +605,7 @@ def compute_metrics(
 
 
 def get_hv_ref_point(problem_name: Optional[str], n_obj: Optional[int]) -> Optional[np.ndarray]:
-    """
-    EN:
-    Return a fixed HV reference point for a problem and objective count.
-
-    PL:
-    Zwraca domyslny punkt odniesienia do metryki HV dla danego problemu i liczby celow.
-    """
+    # Return a fixed HV reference point for a problem and objective count.
     if problem_name is None or n_obj is None:
         return None
     try:
@@ -785,11 +621,5 @@ def get_hv_ref_point(problem_name: Optional[str], n_obj: Optional[int]) -> Optio
 
 
 def fixed_ref_point_for_problem(problem_name: Optional[str], n_obj: Optional[int]) -> Optional[np.ndarray]:
-    """
-    EN:
-    Backward-compatible alias for `get_hv_ref_point`.
-
-    PL:
-    Druga nazwa tej samej funkcji, zostawiona dla zgodnosci z reszta kodu.
-    """
+    # Backward-compatible alias for `get_hv_ref_point`.
     return get_hv_ref_point(problem_name, n_obj)

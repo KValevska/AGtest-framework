@@ -1,14 +1,11 @@
-"""
-EN:
-Viennet3 benchmark problem implementation for pymoo.( 3 criterion)
-"""
+# Viennet3 benchmark problem implementation for pymoo.( 3 criterion)
 
 # ------------------------------------------------------------------------------------
-# File: viennet3.py
-# Contents: Viennet3 benchmark problem class for pymoo.
-# What happens here: two-dimensional decision vectors are evaluated into three nonlinear objective functions.
-# Role in the framework: provides a three-objective continuous benchmark for GUI experiments.
-# Author: mgr inz. Kristina Valevska
+# Module: viennet3.py
+# Summary: Viennet3 benchmark problem class for pymoo.
+# Implementation: two-dimensional decision vectors are evaluated into three nonlinear objective functions.
+# Responsibility: provides a three-objective continuous benchmark for GUI experiments.
+# Author: Kristina Valevska, MSc Eng.
 # Implementation source: own implementation based on classical Viennet3 benchmark definitions.
 # ------------------------------------------------------------------------------------
 
@@ -19,10 +16,7 @@ from pymoo.core.problem import Problem
 
 
 class Viennet3Problem(Problem):
-    """
-    EN:
-    Three-objective Viennet3 benchmark.
-    """
+    # Three-objective Viennet3 benchmark.
 
     def __init__(self):
         super().__init__(

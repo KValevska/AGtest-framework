@@ -1,18 +1,11 @@
-"""
-EN:
-Public exports for benchmark problem classes and problem registry factories.
-
-PL:
-Udostepnia problemy testowe, ktore mozna wybrac w aplikacji do porownania
-algorytmow.
-"""
+# Public exports for benchmark problem classes and problem registry factories.
 
 # ------------------------------------------------------------------------------------
-# File: __init__.py
-# Contents: public exports for benchmark problem classes, factories and the problem registry.
-# What happens here: local problem definitions and registry factory functions are re-exported.
-# Role in the framework: exposes benchmark problems used by the doctoral-dissertation GUI experiments.
-# Author: mgr inz. Kristina Valevska
+# Module: __init__.py
+# Summary: public exports for benchmark problem classes, factories and the problem registry.
+# Implementation: local problem definitions and registry factory functions are re-exported.
+# Responsibility: exposes benchmark problems used by the doctoral-dissertation GUI experiments.
+# Author: Kristina Valevska, MSc Eng.
 # ------------------------------------------------------------------------------------
 
 from __future__ import annotations

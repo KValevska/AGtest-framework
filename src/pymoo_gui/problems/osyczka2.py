@@ -1,14 +1,11 @@
-"""
-EN:
-Osyczka2 constrained benchmark problem implementation for pymoo.
-"""
+# Osyczka2 constrained benchmark problem implementation for pymoo.
 
 # ------------------------------------------------------------------------------------
-# File: osyczka2.py
-# Contents: Osyczka2 benchmark problem class for pymoo.
-# What happens here: decision vectors are evaluated into two objectives and six inequality constraints.
-# Role in the framework: provides a classical constrained six-variable benchmark for GUI experiments.
-# Author: mgr inz. Kristina Valevska
+# Module: osyczka2.py
+# Summary: Osyczka2 benchmark problem class for pymoo.
+# Implementation: decision vectors are evaluated into two objectives and six inequality constraints.
+# Responsibility: provides a classical constrained six-variable benchmark for GUI experiments.
+# Author: Kristina Valevska, MSc Eng.
 # Implementation source: own implementation based on benchmark definitions used in jMetal / pymoo-style frameworks.
 # ------------------------------------------------------------------------------------
 
@@ -19,13 +16,8 @@ from pymoo.core.problem import Problem
 
 
 class Osyczka2Problem(Problem):
-    """
-    EN:
-    Two-objective constrained Osyczka2 benchmark.
-
-    PL:
-    Problem z szescioma zmiennymi i zlozonym obszarem dopuszczalnym.
-    """
+    # Two-objective constrained Osyczka2 benchmark.
+    # Problem z szescioma zmiennymi i zlozonym obszarem dopuszczalnym.
 
     def __init__(self):
         super().__init__(

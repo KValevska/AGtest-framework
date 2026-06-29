@@ -1,0 +1,26 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Test and temporary directories
+.pytest_cache/
+pytest-cache-files-*/
+tmp*/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE and local tooling
+.idea/
+.vscode/
+
+# GUI runtime exports
+metrics_tables/
+solution_tables/
+
+# OS files
+Thumbs.db
+Desktop.ini

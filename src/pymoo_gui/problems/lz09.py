@@ -1,14 +1,11 @@
-"""
-EN:
-LZ09 benchmark family implementation for pymoo.
-"""
+# LZ09 benchmark family implementation for pymoo.
 
 # ------------------------------------------------------------------------------------
-# File: lz09.py
-# Contents: LZ09 benchmark family for pymoo.
-# What happens here: the Li-Zhang problem family is evaluated using the original shape and distance functions.
-# Role in the framework: provides the LZ09 research benchmark family used by the GUI experiments.
-# Author: mgr inz. Kristina Valevska
+# Module: lz09.py
+# Summary: LZ09 benchmark family for pymoo.
+# Implementation: the Li-Zhang problem family is evaluated using the original shape and distance functions.
+# Responsibility: provides the LZ09 research benchmark family used by the GUI experiments.
+# Author: Kristina Valevska, MSc Eng.
 # Implementation source: own implementation based on the jMetalPy source and the original LZ09 article.
 # ------------------------------------------------------------------------------------
 
@@ -21,13 +18,7 @@ from pymoo.core.problem import Problem
 
 
 class LZ09Problem(Problem):
-    """
-    EN:
-    Base class for the LZ09 benchmark family.
-
-    PL:
-    Wspolna implementacja rodziny LZ09 z parametrami ksztaltu i odleglosci.
-    """
+    # Base class for the LZ09 benchmark family.
 
     def __init__(self, n_var: int, n_obj: int, ptype: int, dtype: int, ltype: int):
         super().__init__(

@@ -1,13 +1,11 @@
-"""
-EN: Parallel problem wrapper for evaluating pymoo problem rows in threads or processes.
-"""
+# Parallel problem wrapper for evaluating pymoo problem rows in threads or processes.
 
 # ------------------------------------------------------------------------------------
-# File: parallel.py
-# Contents: optional parallel evaluation wrapper for pymoo problems.
-# What happens here: vectorized problems are evaluated row-by-row using a thread or process pool.
-# Role in the framework: allows expensive objective functions to use multiple CPU workers from the GUI.
-# Author: mgr inz. Kristina Valevska
+# Module: parallel.py
+# Summary: optional parallel evaluation wrapper for pymoo problems.
+# Implementation: vectorized problems are evaluated row-by-row using a thread or process pool.
+# Responsibility: allows expensive objective functions to use multiple CPU workers from the GUI.
+# Author: Kristina Valevska, MSc Eng.
 # ------------------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -23,25 +21,13 @@ _PROCESS_PROBLEM: Any = None
 
 
 def _init_process_problem(problem: Any) -> None:
-    """
-    EN:
-    Store a problem instance in each worker process initializer.
-
-    PL:
-    Zapamietuje problem w procesie roboczym, aby kolejne zadania mogly go uzywac.
-    """
+    # Store a problem instance in each worker process initializer.
     global _PROCESS_PROBLEM
     _PROCESS_PROBLEM = problem
 
 
 def _row_output(value: Any) -> np.ndarray:
-    """
-    EN:
-    Normalize one-row pymoo evaluation output to a row vector.
-
-    PL:
-    Porzadkuje wynik obliczen jednego rozwiazania, usuwajac niepotrzebny wymiar.
-    """
+    # Normalize one-row pymoo evaluation output to a row vector.
     arr = np.asarray(value)
     if arr.ndim > 0 and arr.shape[0] == 1:
         arr = arr[0]
@@ -49,13 +35,7 @@ def _row_output(value: Any) -> np.ndarray:
 
 
 def _evaluate_problem_row(problem: Any, x: Any, return_values_of: Sequence[str]) -> dict[str, np.ndarray]:
-    """
-    EN:
-    Evaluate one decision vector with the wrapped pymoo problem.
-
-    PL:
-    Liczy wskazane wyniki dla jednego rozwiazania.
-    """
+    # Evaluate one decision vector with the wrapped pymoo problem.
     row = np.asarray(x).reshape(1, -1)
     evaluated = problem.evaluate(
         row,
@@ -66,29 +46,16 @@ def _evaluate_problem_row(problem: Any, x: Any, return_values_of: Sequence[str])
 
 
 def _evaluate_thread_row(args: tuple[Any, Any, Sequence[str]]) -> dict[str, np.ndarray]:
-    """
-    EN:
-    Thread-pool worker entry point with the problem passed in each task.
-
-    PL:
-    Funkcja robocza dla watkow, gdzie problem jest przekazywany razem z zadaniem.
-    """
+    # Thread-pool worker entry point with the problem passed in each task.
+    # Funkcja robocza dla watkow, gdzie problem jest przekazywany razem z zadaniem.
     problem, x, return_values_of = args
     return _evaluate_problem_row(problem, x, return_values_of)
 
 
 def _evaluate_process_row(args: tuple[Any, Sequence[str]]) -> dict[str, np.ndarray]:
-    """
-    EN:
-    Process-pool worker entry point using the initialized global problem.
-
-    PL:
-    Funkcja robocza dla procesow, korzystajaca z problemu zapamietanego w procesie.
-
-    Raises:
-        RuntimeError: EN: If the process initializer did not set the problem.
-                      PL: Gdy proces roboczy nie zostal poprawnie przygotowany.
-    """
+    # Process-pool worker entry point using the initialized global problem.
+    # Raises:
+    # RuntimeError: If the process initializer did not set the problem.
     x, return_values_of = args
     if _PROCESS_PROBLEM is None:
         raise RuntimeError("Process worker problem was not initialized.")
@@ -96,26 +63,12 @@ def _evaluate_process_row(args: tuple[Any, Sequence[str]]) -> dict[str, np.ndarr
 
 
 class ParallelProblem(Problem):
-    """
-    EN:
-    pymoo `Problem` wrapper that evaluates each row through a worker pool.
-
-    PL:
-    Opakowuje problem tak, aby wiele rozwiazan moglo byc ocenianych rownolegle.
-    """
+    # pymoo `Problem` wrapper that evaluates each row through a worker pool.
 
     def __init__(self, problem: Any, workers: int, backend: str = "process"):
-        """
-        EN:
-        Initialize a parallel evaluation wrapper and its worker pool.
-
-        PL:
-        Przygotowuje problem do rownoleglego liczenia oraz tworzy pule watkow albo procesow.
-
-        Raises:
-            ValueError: EN: If worker count or backend name is invalid.
-                        PL: Gdy liczba workerow albo typ backendu jest niepoprawny.
-        """
+        # Initialize a parallel evaluation wrapper and its worker pool.
+        # Raises:
+        # ValueError: If worker count or backend name is invalid.
         workers = int(workers)
         if workers < 1:
             raise ValueError(f"parallel_workers must be >= 1, got {workers}")
@@ -141,13 +94,7 @@ class ParallelProblem(Problem):
         self._pool = self._make_pool()
 
     def _make_pool(self) -> Any:
-        """
-        EN:
-        Create a thread or process pool according to the selected backend.
-
-        PL:
-        Tworzy pule watkow albo procesow wybrana w ustawieniach GUI.
-        """
+        # Create a thread or process pool according to the selected backend.
         if self.parallel_backend == "thread":
             return ThreadPool(processes=self.parallel_workers)
         context = mp.get_context("spawn")
@@ -158,23 +105,11 @@ class ParallelProblem(Problem):
         )
 
     def __getattr__(self, name: str) -> Any:
-        """
-        EN:
-        Delegate unknown attributes to the wrapped problem.
-
-        PL:
-        Gdy opakowanie nie ma danego pola, pobiera je z oryginalnego problemu.
-        """
+        # Delegate unknown attributes to the wrapped problem.
         return getattr(self.problem, name)
 
     def _map_rows(self, X: np.ndarray, return_values_of: Sequence[str]) -> Iterable[dict[str, np.ndarray]]:
-        """
-        EN:
-        Dispatch all decision-vector rows to the selected worker pool.
-
-        PL:
-        Rozdziela wiersze populacji miedzy watki albo procesy robocze.
-        """
+        # Dispatch all decision-vector rows to the selected worker pool.
         if self.parallel_backend == "thread":
             tasks = ((self.problem, x, return_values_of) for x in X)
             return self._pool.map(_evaluate_thread_row, tasks)
@@ -182,17 +117,9 @@ class ParallelProblem(Problem):
         return self._pool.map(_evaluate_process_row, tasks)
 
     def _evaluate(self, X: np.ndarray, out: dict[str, Any], *args: Any, **kwargs: Any) -> None:
-        """
-        EN:
-        Evaluate a batch row-by-row and assemble pymoo output arrays.
-
-        PL:
-        Liczy cala populacje wiersz po wierszu i sklada wyniki z powrotem do formatu pymoo.
-
-        Raises:
-            ValueError: EN: If extra evaluation arguments are supplied.
-                        PL: Gdy wywolanie zawiera dodatkowe argumenty, ktorych opakowanie nie obsluguje.
-        """
+        # Evaluate a batch row-by-row and assemble pymoo output arrays.
+        # Raises:
+        # ValueError: If extra evaluation arguments are supplied.
         if args or kwargs:
             raise ValueError("ParallelProblem does not support extra evaluation args or kwargs.")
 
@@ -204,13 +131,7 @@ class ParallelProblem(Problem):
                 out[key] = np.asarray(values)
 
     def close(self) -> None:
-        """
-        EN:
-        Close or terminate the worker pool and release resources.
-
-        PL:
-        Zamyka pule workerow, aby po zakonczeniu obliczen nie zostawac dodatkowych procesow.
-        """
+        # Close or terminate the worker pool and release resources.
         pool = getattr(self, "_pool", None)
         if pool is None:
             return
@@ -227,11 +148,5 @@ class ParallelProblem(Problem):
 
 
 def make_parallel_problem(problem: Any, workers: int, backend: str = "process") -> ParallelProblem:
-    """
-    EN:
-    Factory helper used by the GUI to wrap a problem for parallel evaluation.
-
-    PL:
-    Tworzy rownolegla wersje problemu na podstawie ustawien z formularza.
-    """
+    # Factory helper used by the GUI to wrap a problem for parallel evaluation.
     return ParallelProblem(problem, workers=workers, backend=backend)

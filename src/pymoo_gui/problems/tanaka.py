@@ -1,14 +1,11 @@
-"""
-EN:
-Tanaka constrained benchmark problem implementation for pymoo.
-"""
+# Tanaka constrained benchmark problem implementation for pymoo.
 
 # ------------------------------------------------------------------------------------
-# File: tanaka.py
-# Contents: Tanaka benchmark problem class for pymoo.
-# What happens here: decision vectors are evaluated into two identity objectives and two nonlinear constraints.
-# Role in the framework: provides a classical nonlinear constrained benchmark for GUI experiments.
-# Author: mgr inz. Kristina Valevska
+# Module: tanaka.py
+# Summary: Tanaka benchmark problem class for pymoo.
+# Implementation: decision vectors are evaluated into two identity objectives and two nonlinear constraints.
+# Responsibility: provides a classical nonlinear constrained benchmark for GUI experiments.
+# Author: Kristina Valevska, MSc Eng.
 # Implementation source: own implementation based on benchmark definitions used in jMetal / pymoo-style frameworks.
 # ------------------------------------------------------------------------------------
 
@@ -19,13 +16,8 @@ from pymoo.core.problem import Problem
 
 
 class TanakaProblem(Problem):
-    """
-    EN:
-    Two-objective constrained Tanaka benchmark.
-
-    PL:
-    Problem z silnie nieliniowym obszarem dopuszczalnym.
-    """
+    # Two-objective constrained Tanaka benchmark.
+    # Problem z silnie nieliniowym obszarem dopuszczalnym.
 
     def __init__(self):
         super().__init__(
