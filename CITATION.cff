@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using these metadata."
+type: software
+title: AGtest-framework
+authors:
+  - family-names: Valevska
+    given-names: Kristina
+abstract: >-
+  Desktop framework for configuring, running, visualizing, and exporting
+  multi-objective optimization experiments based on pymoo.
+repository-code: "https://github.com/SerafimaWA/Framework"
+url: "https://github.com/SerafimaWA/Framework"
+license: Apache-2.0
+keywords:
+  - multi-objective optimization
+  - evolutionary algorithms
+  - pymoo
+  - graphical user interface

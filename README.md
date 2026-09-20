@@ -1,5 +1,7 @@
 # AGtest-framework
 
+[DOI: 10.5281/zenodo.22863482](https://doi.org/10.5281/zenodo.22863482)
+
 Desktop framework for configuring, running, visualizing, and exporting
 multi-objective optimization experiments based on `pymoo`.
 
@@ -749,15 +751,18 @@ for the complete license terms.
 
 ## Citation
 
-If you use this software in academic work, cite the associated SoftwareX
-article, repository release, or both. Update the entry below with the final
-repository URL and DOI when they become available.
+If you use this software in academic work, cite the repository release used
+for your experiments. Citation metadata are provided in [CITATION.cff](CITATION.cff).
+The project is archived on Zenodo:
+[DOI: 10.5281/zenodo.22863482](https://doi.org/10.5281/zenodo.22863482).
 
 ```bibtex
 @software{agtest_framework,
   title = {AGtest-framework},
-  author = {Kristina Valevska},
+  author = {Valevska, Kristina},
   year = {2026},
-  url = {https://github.com/<user>/<repo>}
+  version = {0.1.0},
+  doi = {10.5281/zenodo.22863482},
+  url = {https://github.com/SerafimaWA/Framework/releases/tag/v0.1.0}
 }
 ```
