@@ -7,6 +7,7 @@ name = "AGtest-framework"
 version = "0.1.0"
 description = "Desktop framework for configuring and analyzing multi-objective optimization experiments"
 readme = "README.md"
+license = { file = "LICENSE" }
 requires-python = ">=3.10"
 dependencies = [
   "numpy>=1.23",
@@ -15,6 +16,9 @@ dependencies = [
   "pyqtgraph>=0.13",
   "pymoo>=0.6.0",
   "platypus-opt>=1.4.1",
+]
+classifiers = [
+  "License :: OSI Approved :: Apache Software License",
 ]
 
 [project.optional-dependencies]

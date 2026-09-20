@@ -723,7 +723,7 @@ class UnifiedParetoDialog(QDialog):
                 axis_labels=axis_labels,
                 title="Front Pareto (1D)",
                 front_label="Nondominated solutions",
-                ref_label="Known Pareto front",
+                ref_label="Pareto front",
             )
         elif self.original_dim == 2:
             self.display_indices = (0, 1)
@@ -735,7 +735,7 @@ class UnifiedParetoDialog(QDialog):
                 axis_labels=axis_labels,
                 title="Front Pareto (2D)",
                 front_label="Nondominated solutions",
-                ref_label="Known Pareto front",
+                ref_label="Pareto front",
             )
         else:
             self.display_indices = (0, 1, 2)
@@ -749,7 +749,7 @@ class UnifiedParetoDialog(QDialog):
                 axis_labels=axis_labels,
                 title="Front Pareto (3D)" + title_suffix,
                 front_label="Nondominated solutions",
-                ref_label="Known Pareto front",
+                ref_label="Pareto front",
             )
 
     def show(self) -> None:
@@ -864,7 +864,7 @@ class UnifiedParetoWidget(QWidget):
                 axis_labels=axis_labels,
                 title="Front Pareto (1D)",
                 front_label="Nondominated solutions",
-                ref_label="Known Pareto front",
+                ref_label="Pareto front",
             )
         elif self.original_dim == 2:
             self.display_indices = (0, 1)
@@ -876,7 +876,7 @@ class UnifiedParetoWidget(QWidget):
                 axis_labels=axis_labels,
                 title="Front Pareto (2D)",
                 front_label="Nondominated solutions",
-                ref_label="Known Pareto front",
+                ref_label="Pareto front",
             )
         else:
             self.display_indices = (0, 1, 2)
@@ -890,7 +890,7 @@ class UnifiedParetoWidget(QWidget):
                 axis_labels=axis_labels,
                 title="Front Pareto (3D)" + title_suffix,
                 front_label="Nondominated solutions",
-                ref_label="Known Pareto front",
+                ref_label="Pareto front",
             )
 
         layout = QVBoxLayout(self)

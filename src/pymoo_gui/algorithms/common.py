@@ -19,7 +19,7 @@ from pymoo.core.callback import Callback
 from pymoo.util.nds.non_dominated_sorting import NonDominatedSorting
 from pymoo.util.ref_dirs import get_reference_directions
 
-from ..metrics import METRIC_TABLE_ORDER, compute_metrics
+from ..metrics import METRIC_TABLE_ORDER, compute_metrics, is_delta_supported
 
 
 logger = logging.getLogger(__name__)
@@ -367,7 +367,7 @@ def make_generation_callback(
                         n_obj=n_obj,
                         X=payload["feasible_nd_X"],
                         problem=problem,
-                        delta_supported=str(algorithm_key or "").lower() == "nsga2",
+                        delta_supported=is_delta_supported(algorithm_key, n_obj),
                     )
                 except (TypeError, ValueError, ArithmeticError) as exc:
                     _record_diagnostic(diagnostics, "compute_metrics failed", exc)

@@ -16,7 +16,7 @@ from typing import Any, Optional
 import numpy as np
 
 FEASIBILITY_TOL = 1e-12
-FINITE_DIFF_EPS = 1e-6
+FINITE_DIFF_EPS = 1e-4
 
 METRIC_DISPLAY_ORDER = ("hv", "igd", "gd", "igd_plus", "gd_plus", "spread", "delta", "kktpm")
 METRIC_TABLE_ORDER = ("igd", "gd", "igd_plus", "gd_plus", "spread", "delta", "hv", "kktpm")
@@ -30,6 +30,20 @@ METRIC_LABELS = {
     "delta": "Delta",
     "kktpm": "KKTPM",
 }
+DELTA_SUPPORTED_ALGORITHM_KEYS = frozenset({"nsga2"})
+
+
+def is_delta_supported(algorithm_key: Optional[str], n_obj: Optional[int] = None) -> bool:
+    # Return whether the current implementation can compute Delta for a run configuration.
+    normalized_key = str(algorithm_key or "").strip().lower()
+    if normalized_key not in DELTA_SUPPORTED_ALGORITHM_KEYS:
+        return False
+    if n_obj is None:
+        return True
+    try:
+        return int(n_obj) == 2
+    except (TypeError, ValueError):
+        return False
 
 
 @dataclass
@@ -274,7 +288,51 @@ def _evaluate_kktpm_inputs(
         dF, dG = _finite_difference_derivatives(problem, X, F_arr, G_arr, eps=finite_diff_eps)
     if dF is None or dG is None:
         return None
+    G_arr, dG = _append_bound_constraints(problem, X, G_arr, dG)
     return F_arr, G_arr, dF, dG
+
+
+def _append_bound_constraints(
+    problem: Any,
+    X: np.ndarray,
+    G: np.ndarray,
+    dG: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    # Add finite variable bounds as inequality constraints required by the KKT conditions.
+    try:
+        from pymoo.constraints.from_bounds import ConstraintsFromBounds
+
+        if isinstance(problem, ConstraintsFromBounds):
+            return G, dG
+    except (ImportError, TypeError):
+        pass
+
+    n_solutions, n_var = X.shape
+    xl, xu = _problem_bounds(problem, n_var)
+    lower_indices = np.flatnonzero(np.isfinite(xl))
+    upper_indices = np.flatnonzero(np.isfinite(xu))
+    if lower_indices.size == 0 and upper_indices.size == 0:
+        return G, dG
+
+    bound_values: list[np.ndarray] = []
+    bound_derivatives: list[np.ndarray] = []
+
+    if lower_indices.size:
+        bound_values.append(xl[lower_indices][None, :] - X[:, lower_indices])
+        lower_derivatives = np.zeros((n_solutions, lower_indices.size, n_var), dtype=float)
+        lower_derivatives[:, np.arange(lower_indices.size), lower_indices] = -1.0
+        bound_derivatives.append(lower_derivatives)
+
+    if upper_indices.size:
+        bound_values.append(X[:, upper_indices] - xu[upper_indices][None, :])
+        upper_derivatives = np.zeros((n_solutions, upper_indices.size, n_var), dtype=float)
+        upper_derivatives[:, np.arange(upper_indices.size), upper_indices] = 1.0
+        bound_derivatives.append(upper_derivatives)
+
+    return (
+        np.column_stack([G, *bound_values]),
+        np.concatenate([dG, *bound_derivatives], axis=1),
+    )
 
 
 def _calc_cv(G: np.ndarray) -> np.ndarray:
@@ -390,7 +448,7 @@ def compute_kktpm(
         z = np.min(F, axis=0)
     z = z.astype(float, copy=True) - float(utopian_eps)
 
-    n_ieq_constr = min(_problem_n_ieq_constr(problem), G.shape[1])
+    n_ieq_constr = G.shape[1]
     values = np.full(X_arr.shape[0], np.inf, dtype=float)
     cv = _calc_cv(G[:, :n_ieq_constr])
 
@@ -538,7 +596,7 @@ def compute_metrics(
             pf = None
 
     if bool(delta_supported) and pf is not None and not feasible_empty:
-        # Delta jest wlaczana tylko dla danych zgodnych z NSGA-II.
+        # Delta is enabled only for data produced by a supported algorithm.
         result.delta = compute_delta(A, pf)
 
     if pf is not None and pf.shape[1] == A.shape[1] and not feasible_empty:
@@ -599,6 +657,7 @@ def compute_metrics(
             finite_values = kktpm_values[np.isfinite(kktpm_values)]
             result.kktpm_values = kktpm_values
             if finite_values.shape[0] > 0:
+                # The generation-level value is the arithmetic mean over the feasible nondominated set.
                 result.kktpm = _safe_float(np.mean(finite_values))
 
     return result

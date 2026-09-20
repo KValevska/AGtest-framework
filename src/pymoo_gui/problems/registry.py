@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 from typing import Any, Dict
 
@@ -123,14 +124,74 @@ def _zdt_known_pf(problem: Any) -> np.ndarray | None:
     return _normalize_pf(pf, expected_n_obj=2)
 
 
-def _dtlz_known_pf(problem: Any, n_partitions: int = 12) -> np.ndarray | None:
-    # Generate reference directions and evaluate a DTLZ Pareto front approximation.
-    n_obj = int(getattr(problem, "n_obj", 3))
-    ref_dirs = get_reference_directions("das-dennis", n_obj, n_partitions=int(n_partitions))
+def _dtlz_reference_directions(n_obj: int, target_points: int) -> np.ndarray:
+    # Select the densest Das-Dennis grid that stays within the requested point budget.
+    n_partitions = 1
+    while math.comb(n_partitions + n_obj - 1, n_obj - 1) <= target_points:
+        n_partitions += 1
+    n_partitions = max(1, n_partitions - 1)
+    return get_reference_directions("das-dennis", n_obj, n_partitions=n_partitions)
+
+
+def _dtlz_degenerate_known_pf(n_obj: int, n_points: int = 1000) -> np.ndarray:
+    # Generate the analytical degenerate Pareto curve shared by DTLZ5 and DTLZ6.
+    theta_1 = np.linspace(0.0, np.pi / 2.0, max(2, int(n_points)))
+    thetas = np.column_stack(
+        [theta_1] + [np.full(theta_1.shape[0], np.pi / 4.0)] * max(0, n_obj - 2)
+    )
+    cos_theta = np.cos(thetas)
+    sin_theta = np.sin(thetas)
+    pf = np.zeros((theta_1.shape[0], n_obj), dtype=float)
+    for objective_index in range(n_obj):
+        pf[:, objective_index] = np.prod(
+            cos_theta[:, : n_obj - 1 - objective_index],
+            axis=1,
+        )
+        if objective_index > 0:
+            pf[:, objective_index] *= sin_theta[:, n_obj - 1 - objective_index]
+    return pf
+
+
+def _dtlz7_known_pf(n_obj: int, target_points: int = 2000) -> np.ndarray:
+    # Generate a deterministic grid over the disconnected Pareto-optimal intervals of DTLZ7.
+    intervals = ((0.0, 0.251412), (0.631627, 0.859401))
+    free_dimensions = n_obj - 1
+    points_per_interval = max(
+        2,
+        int((max(1, int(target_points)) / (len(intervals) ** free_dimensions)) ** (1.0 / free_dimensions)),
+    )
+    axis = np.concatenate(
+        [np.linspace(start, stop, points_per_interval) for start, stop in intervals]
+    )
+    mesh = np.meshgrid(*([axis] * free_dimensions), indexing="ij")
+    first_objectives = np.column_stack([values.reshape(-1) for values in mesh])
+    last_objective = 2.0 * n_obj - np.sum(
+        first_objectives * (1.0 + np.sin(3.0 * np.pi * first_objectives)),
+        axis=1,
+    )
+    return np.column_stack([first_objectives, last_objective])
+
+
+def _dtlz_known_pf(problem: Any, target_points: int = 2000) -> np.ndarray | None:
+    # Generate a dense local Pareto-front approximation without remote reference files.
     try:
-        pf = problem.pareto_front(ref_dirs=ref_dirs)
-    except (TypeError, ValueError, AttributeError):
+        n_obj = int(getattr(problem, "n_obj", 3))
+    except (TypeError, ValueError):
         return None
+    if n_obj < 2:
+        return None
+
+    problem_type = type(problem).__name__.lower()
+    if problem_type in {"dtlz5", "dtlz6"}:
+        pf = _dtlz_degenerate_known_pf(n_obj)
+    elif problem_type == "dtlz7":
+        pf = _dtlz7_known_pf(n_obj, target_points=target_points)
+    else:
+        ref_dirs = _dtlz_reference_directions(n_obj, max(2, int(target_points)))
+        try:
+            pf = problem.pareto_front(ref_dirs=ref_dirs)
+        except (TypeError, ValueError, AttributeError):
+            return None
     return _normalize_pf(pf, expected_n_obj=n_obj)
 
 

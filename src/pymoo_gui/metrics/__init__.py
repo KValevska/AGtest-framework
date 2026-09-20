@@ -23,6 +23,7 @@ from .export import (
     write_xlsx_workbook,
 )
 from .quality import (
+    DELTA_SUPPORTED_ALGORITHM_KEYS,
     METRIC_DISPLAY_ORDER,
     METRIC_LABELS,
     METRIC_TABLE_ORDER,
@@ -33,10 +34,12 @@ from .quality import (
     compute_spread,
     fixed_ref_point_for_problem,
     get_hv_ref_point,
+    is_delta_supported,
 )
 
 __all__ = [
     "EXPORT_DIR_NAME",
+    "DELTA_SUPPORTED_ALGORITHM_KEYS",
     "METRIC_DISPLAY_ORDER",
     "METRIC_LABELS",
     "METRIC_TABLE_ORDER",
@@ -49,6 +52,7 @@ __all__ = [
     "date_for_filename",
     "fixed_ref_point_for_problem",
     "get_hv_ref_point",
+    "is_delta_supported",
     "metrics_export_path",
     "next_available_export_path",
     "safe_filename_part",

@@ -1,5 +1,3 @@
-# Template module for implementing a custom pymoo-compatible algorithm.
-
 # ------------------------------------------------------------------------------------
 # Module: empty_algorithm_template.py
 # Summary: template algorithm class, factory and optional GUI registry definition.

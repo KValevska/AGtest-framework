@@ -16,6 +16,8 @@ adding a new algorithm or a new problem.
 - export of metric history and nondominated solutions to `.xlsx` workbooks
 - optional parallel objective evaluation for expensive problems
 - `RAN` mode for runs without a GUI-imposed generation limit
+- `Multi` tab for finite Cartesian experiments across multiple algorithms and problems without plot rendering
+- `Metric trajectories` tab with one generation/value chart per metric for the current single experiment
 
 ## Requirements
 
@@ -74,10 +76,33 @@ AGtest-framework
 5. Set the hypervolume reference point if `HV` should be computed.
 6. Start the run.
 7. Inspect the Pareto-front visualization and generation-wise metric table.
-8. Export the metric history and nondominated solutions to `.xlsx` files.
+8. Inspect metric trajectories for the current run.
+9. Export the metric history and nondominated solutions to `.xlsx` files.
 
 This workflow allows the user to run a complete multi-objective optimization
 experiment without writing a separate execution script.
+
+## Multi experiments
+
+The `Multi` tab runs every selected algorithm against every selected problem.
+It uses registry defaults for problem and algorithm parameters, applies the same
+seed to every combination, and always requires a finite maximum generation
+count. Multi experiments do not render Pareto plots.
+
+Each combination is executed sequentially in a worker thread. A failure in one
+combination is recorded in the results table and does not stop the remaining
+runs. Metrics history and final nondominated solutions are saved as separate
+`.xlsx` files in `metrics_tables` and `solution_tables`. Already completed and
+partially completed results are preserved when the experiment is stopped.
+
+## Metric trajectories
+
+The `Metric trajectories` tab belongs only to single experiments started from
+the `Main` tab. It displays a separate line chart for every supported metric,
+with generation on the horizontal axis and metric value on the vertical axis.
+If a metric has no finite value for the current run, its chart displays `N/A`
+instead of an empty plot. Starting another Main experiment clears the previous
+trajectories, while Multi experiments never modify them.
 
 ## Supported components
 
@@ -110,12 +135,15 @@ experiment without writing a separate execution script.
 
 - `run_gui.py`: command-line bootstrap that adds `src` to `sys.path` and starts the GUI.
 - `src/pymoo_gui/app.py`: main PyQt application window, dynamic forms, run orchestration, worker integration, plotting state, metrics table, and export triggers.
+- `src/pymoo_gui/multi.py`: finite multi-algorithm/multi-problem experiment execution and result export.
 - `src/pymoo_gui/algorithms`: algorithm implementations, adapters, shared callback code, and the algorithm registry.
 - `src/pymoo_gui/problems`: local benchmark problem implementations, registry helpers, and known Pareto-front loaders.
 - `src/pymoo_gui/metrics`: metric computation and XLSX export helpers.
 - `src/pymoo_gui/viz`: Pareto-front visualization widgets and dialogs.
+- `src/pymoo_gui/viz/metric_trajectories.py`: current Main-run metric history charts.
 - `src/pymoo_gui/parallel.py`: optional parallel evaluation wrapper for expensive problem evaluations.
 - `tests`: registry and runtime smoke tests.
+- `docs/FUNCTION_CATALOG.md`: complete function, method, nested-function, and lambda inventory with source links.
 
 ## Architecture overview
 
@@ -376,6 +404,13 @@ Before registering a new algorithm, check all of the following:
 
 There are two supported patterns.
 
+Start from `src/pymoo_gui/problems/empty_benchmark_template.py` when implementing
+a benchmark locally. The template includes vectorized objective evaluation,
+dimension and bound validation, commented constraint extension points, a
+Pareto-front hook, a factory, and optional GUI registry metadata. Copy or rename
+the file, replace the placeholder equations, and register the completed
+definition only after a short standalone evaluation succeeds.
+
 ### Pattern A. Local problem class
 
 Use this when you want the problem to live inside the repository.
@@ -513,7 +548,8 @@ Important behavior:
 - `HV` requires a valid reference point
 - `GD`, `IGD`, `GD+`, and `IGD+` require a known Pareto front
 - `Delta` is only enabled in the callback path where it is meaningful
-- `KKTPM` requires decision vectors and a compatible problem definition
+- `KKTPM` requires decision vectors and a compatible problem definition; finite variable bounds are included as KKT inequality constraints
+- the generation-level `KKTPM` value is the arithmetic mean over finite values for the current feasible nondominated set
 
 ## How metrics and solutions are exported
 
@@ -633,9 +669,8 @@ After any extension, do all of the following:
 
 ## License
 
-This repository does not currently include a `LICENSE` file. Add the intended
-license before public release or SoftwareX submission, then update this section
-to point to that file explicitly.
+AGtest-framework is licensed under the Apache License 2.0. See [LICENSE](LICENSE)
+for the complete license terms.
 
 ## Citation
 

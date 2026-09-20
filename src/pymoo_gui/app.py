@@ -38,12 +38,16 @@ from PyQt5.QtWidgets import (
     QHeaderView,
     QLabel,
     QLineEdit,
+    QListWidget,
+    QListWidgetItem,
     QMainWindow,
     QMessageBox,
+    QProgressBar,
     QPushButton,
     QRadioButton,
     QSpinBox,
     QSplitter,
+    QTabWidget,
     QTableWidget,
     QTableWidgetItem,
     QTextEdit,
@@ -85,14 +89,17 @@ from .metrics import (
     METRIC_DISPLAY_ORDER,
     METRIC_LABELS,
     METRIC_TABLE_ORDER,
+    is_delta_supported,
     metrics_export_path,
     next_available_export_path,
     solutions_export_path,
     write_xlsx_table,
     write_xlsx_workbook,
 )
+from .multi import MultiExperimentWorker, build_multi_run_specs
 from .parallel import make_parallel_problem
 from .problems import PROBLEMS
+from .viz.metric_trajectories import MetricTrajectoriesWidget
 from .viz.pareto_dialogs import UnifiedParetoWidget
 
 EMPTY = inspect.Signature.empty
@@ -257,7 +264,7 @@ def translate_ui_text(text: Any) -> str:
         ("Pokazuje lub ukrywa peĹ‚nÄ… populacjÄ™ na wykresie Pareto.", "Show or hide the full population in the Pareto plot."),
         (
             "Ukrywa znany front Pareto, ale nie usuwa go z danych uĹĽywanych przez metryki.",
-            "Hide the known Pareto front without removing it from the data used by the metrics.",
+            "Hide the Pareto front without removing it from the data used by the metrics.",
         ),
         (
             "Jednorazowo dopasowuje zakres osi dla aktualnego widoku Pareto, bez przeliczania przy kaĹĽdej generacji.",
@@ -696,6 +703,8 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("AGtest-framework")
         self.resize(1500, 920)
         self._thread: Optional[OptimizationWorker] = None
+        self._multi_thread: Optional[MultiExperimentWorker] = None
+        self._multi_result_rows: dict[tuple[str, str], int] = {}
         self._n_obj_widget: Optional[QSpinBox] = None
         self._last_gen_appended: Optional[int] = None
         self._plot_widget: Optional[UnifiedParetoWidget] = None
@@ -705,6 +714,7 @@ class MainWindow(QMainWindow):
         self._plot_population_F: Optional[np.ndarray] = None
         self._plot_generation: Optional[int] = None
         self._plot_n_obj: Optional[int] = None
+        self._run_algorithm_key: Optional[str] = None
         self._run_algorithm_name: Optional[str] = None
         self._run_problem_name: Optional[str] = None
         self._run_nd_save_mode = ND_SAVE_LAST_EPOCH
@@ -723,9 +733,16 @@ class MainWindow(QMainWindow):
         self._update_run_button_state()
 
     def _build_ui(self) -> None:
-        # Build the main horizontal splitter with controls and results panels.
+        # Build browser-style tabs containing the existing Main view and the Multi view.
+        self.tabs = QTabWidget()
+        self.tabs.setDocumentMode(True)
+        self.tabs.setMovable(False)
+        self.setCentralWidget(self.tabs)
+
+        main_tab = QWidget()
+        main_layout = QVBoxLayout(main_tab)
+        main_layout.setContentsMargins(0, 0, 0, 0)
         splitter = QSplitter(Qt.Horizontal)
-        self.setCentralWidget(splitter)
         controls_panel = self._build_controls_panel()
         results_panel = self._build_results_panel()
         splitter.addWidget(controls_panel)
@@ -734,6 +751,124 @@ class MainWindow(QMainWindow):
         splitter.setSizes([440, 1060])
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
+        main_layout.addWidget(splitter)
+
+        self.tabs.addTab(main_tab, "Main")
+        self.tabs.addTab(self._build_multi_panel(), "Multi")
+        self.metric_trajectories = MetricTrajectoriesWidget()
+        self.tabs.addTab(self.metric_trajectories, "Metric trajectories")
+
+    def _build_checkable_registry_list(self, registry: Mapping[str, Dict[str, Any]]) -> QListWidget:
+        # Build a list whose entries can be checked independently without modifier keys.
+        widget = QListWidget()
+        widget.setAlternatingRowColors(True)
+        for key, entry in registry.items():
+            item = QListWidgetItem(str(entry.get("label", key)))
+            item.setData(Qt.UserRole, str(key))
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            item.setCheckState(Qt.Unchecked)
+            widget.addItem(item)
+        return widget
+
+    def _build_multi_selection_group(self, title: str, widget: QListWidget) -> QGroupBox:
+        # Wrap a checkable registry list with Select all and Clear controls.
+        group = QGroupBox(title)
+        layout = QVBoxLayout(group)
+        layout.addWidget(widget)
+        buttons = QHBoxLayout()
+        select_all = QPushButton("Select all")
+        clear = QPushButton("Clear")
+        select_all.clicked.connect(lambda: self._set_all_multi_items(widget, True))
+        clear.clicked.connect(lambda: self._set_all_multi_items(widget, False))
+        buttons.addWidget(select_all)
+        buttons.addWidget(clear)
+        layout.addLayout(buttons)
+        return group
+
+    def _build_multi_panel(self) -> QWidget:
+        # Build the non-visual batch experiment tab.
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+
+        description = QLabel(
+            "Select one or more algorithms and problems. Multi runs every selected algorithm on every "
+            "selected problem, uses registry defaults, and saves metrics plus final nondominated solutions."
+        )
+        description.setWordWrap(True)
+        layout.addWidget(description)
+
+        self.multi_algorithm_list = self._build_checkable_registry_list(ALGORITHMS)
+        self.multi_problem_list = self._build_checkable_registry_list(PROBLEMS)
+        selectors = QHBoxLayout()
+        self.multi_algorithm_group = self._build_multi_selection_group("Algorithms", self.multi_algorithm_list)
+        self.multi_problem_group = self._build_multi_selection_group("Problems", self.multi_problem_list)
+        selectors.addWidget(self.multi_algorithm_group, 1)
+        selectors.addWidget(self.multi_problem_group, 1)
+        layout.addLayout(selectors, 2)
+
+        settings_group = QGroupBox("Experiment settings")
+        settings = QFormLayout(settings_group)
+        self.multi_n_gen_spin = QSpinBox()
+        self.multi_n_gen_spin.setRange(1, 10**9)
+        self.multi_n_gen_spin.setValue(100)
+        self.multi_n_gen_spin.setToolTip("Required upper generation limit for every run in the Multi experiment.")
+        self.multi_seed_spin = QSpinBox()
+        self.multi_seed_spin.setRange(0, 2**31 - 1)
+        self.multi_seed_spin.setValue(1)
+        self.multi_seed_spin.setToolTip("The same seed is used for each combination to support fair comparisons.")
+        self.multi_selection_lbl = QLabel("0 algorithms × 0 problems = 0 runs")
+        settings.addRow("Maximum epochs (generations):", self.multi_n_gen_spin)
+        settings.addRow("Seed:", self.multi_seed_spin)
+        settings.addRow("Selection:", self.multi_selection_lbl)
+        layout.addWidget(settings_group)
+
+        button_row = QHBoxLayout()
+        self.multi_start_btn = QPushButton("Start Multi")
+        self.multi_stop_btn = QPushButton("Stop Multi")
+        self.multi_stop_btn.setEnabled(False)
+        button_row.addWidget(self.multi_start_btn)
+        button_row.addWidget(self.multi_stop_btn)
+        button_row.addStretch(1)
+        layout.addLayout(button_row)
+
+        self.multi_progress = QProgressBar()
+        self.multi_progress.setRange(0, 1)
+        self.multi_progress.setValue(0)
+        self.multi_status_lbl = QLabel("Status: idle")
+        layout.addWidget(self.multi_progress)
+        layout.addWidget(self.multi_status_lbl)
+
+        self.multi_results_table = QTableWidget()
+        self.multi_results_table.setColumnCount(10)
+        self.multi_results_table.setHorizontalHeaderLabels(
+            [
+                "#",
+                "Problem",
+                "Algorithm",
+                "Status",
+                "Generation",
+                "Evaluations",
+                "NDS",
+                "Metrics file",
+                "Solutions file",
+                "Error",
+            ]
+        )
+        self.multi_results_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.multi_results_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.multi_results_table.setSelectionMode(QAbstractItemView.SingleSelection)
+        multi_header = self.multi_results_table.horizontalHeader()
+        multi_header.setSectionResizeMode(QHeaderView.ResizeToContents)
+        for column in (1, 2, 7, 8, 9):
+            multi_header.setSectionResizeMode(column, QHeaderView.Stretch)
+        layout.addWidget(self.multi_results_table, 2)
+
+        self.multi_log = QTextEdit()
+        self.multi_log.setReadOnly(True)
+        self.multi_log.setPlaceholderText("Multi experiment messages appear here.")
+        self.multi_log.setMaximumHeight(150)
+        layout.addWidget(self.multi_log)
+        return panel
 
     def _apply_english_ui_texts(self) -> None:
         # Normalize GUI captions and labels to English after widget construction.
@@ -871,9 +1006,11 @@ class MainWindow(QMainWindow):
         self.stop_btn = QPushButton("Stop")
         self.stop_btn.setEnabled(False)
         self.console_btn = QPushButton("Console")
+        self.clear_btn = QPushButton("Clear")
         button_row.addWidget(self.run_btn)
         button_row.addWidget(self.stop_btn)
         button_row.addWidget(self.console_btn)
+        button_row.addWidget(self.clear_btn)
         self._left.addLayout(button_row)
 
         self.status_lbl = QLabel("Status: idle")
@@ -907,29 +1044,261 @@ class MainWindow(QMainWindow):
         self.run_btn.clicked.connect(self.start_run)
         self.stop_btn.clicked.connect(self.stop_run)
         self.console_btn.clicked.connect(self._toggle_console_dock)
+        self.clear_btn.clicked.connect(self._clear_console_and_visuals)
         self.console_dock.visibilityChanged.connect(self._on_console_visibility_changed)
         self._on_console_visibility_changed(self.console_dock.isVisible())
+        self.multi_algorithm_list.itemChanged.connect(self._update_multi_selection_state)
+        self.multi_problem_list.itemChanged.connect(self._update_multi_selection_state)
+        self.multi_start_btn.clicked.connect(self.start_multi_experiment)
+        self.multi_stop_btn.clicked.connect(self.stop_multi_experiment)
         ran_binding = self.run_form.binding("ran")
         if ran_binding is not None and isinstance(ran_binding.widget, QCheckBox):
             ran_binding.widget.toggled.connect(self._on_ran_toggled)
         parallel_binding = self.run_form.binding("parallel_eval")
         if parallel_binding is not None and isinstance(parallel_binding.widget, QCheckBox):
             parallel_binding.widget.toggled.connect(self._on_parallel_eval_toggled)
+        self._update_multi_selection_state()
 
     def _configure_placeholders(self) -> None:
         # Configure initial tooltips, placeholders, and dependent run-form state.
         self.live_updates.setToolTip("Refresh the Pareto plot after each generation.")
         self.show_population_cb.setToolTip("Show or hide the full population in the Pareto plot.")
         self.hide_pareto_front_cb.setToolTip(
-            "Hide the known Pareto front without removing it from the data used by the metrics."
+            "Hide the Pareto front without removing it from the data used by the metrics."
         )
         self.auto_scale_axes.setToolTip(
             "Fit the axis ranges for the current Pareto view without recomputing them on every generation."
         )
+        self.clear_btn.setToolTip("Clear the console, Pareto plot, and metric trajectory charts.")
         self.nd_save_mode_combo.setToolTip("Choose for which epochs the nondominated front should be saved.")
         self.nd_save_step_spin.setToolTip("Positive integer used only in the 'Every N epochs' mode.")
         self._update_nd_save_controls_state()
         self._update_run_form_state()
+
+    def _set_all_multi_items(self, widget: QListWidget, checked: bool) -> None:
+        # Set all items in one Multi selection list to the same check state.
+        if self._multi_thread and self._multi_thread.isRunning():
+            return
+        widget.blockSignals(True)
+        try:
+            state = Qt.Checked if checked else Qt.Unchecked
+            for index in range(widget.count()):
+                widget.item(index).setCheckState(state)
+        finally:
+            widget.blockSignals(False)
+        self._update_multi_selection_state()
+
+    def _checked_multi_keys(self, widget: QListWidget) -> list[str]:
+        # Return registry keys for checked entries in display order.
+        keys: list[str] = []
+        for index in range(widget.count()):
+            item = widget.item(index)
+            if item.checkState() == Qt.Checked:
+                key = item.data(Qt.UserRole)
+                if key is not None:
+                    keys.append(str(key))
+        return keys
+
+    def _update_multi_selection_state(self, *_args: Any) -> None:
+        # Refresh the Cartesian run count and Multi button availability.
+        algorithm_count = len(self._checked_multi_keys(self.multi_algorithm_list))
+        problem_count = len(self._checked_multi_keys(self.multi_problem_list))
+        run_count = algorithm_count * problem_count
+        self.multi_selection_lbl.setText(
+            f"{algorithm_count} algorithms × {problem_count} problems = {run_count} runs"
+        )
+        multi_running = bool(self._multi_thread and self._multi_thread.isRunning())
+        single_running = bool(self._thread and self._thread.isRunning())
+        self.multi_start_btn.setEnabled(run_count > 0 and not multi_running and not single_running)
+        self.multi_stop_btn.setEnabled(multi_running)
+
+    def _set_multi_running_state(self, running: bool) -> None:
+        # Lock Multi configuration while the finite batch is running.
+        self.multi_algorithm_group.setEnabled(not running)
+        self.multi_problem_group.setEnabled(not running)
+        self.multi_n_gen_spin.setEnabled(not running)
+        self.multi_seed_spin.setEnabled(not running)
+        self.multi_stop_btn.setEnabled(running)
+        self.clear_btn.setEnabled(not running and not (self._thread and self._thread.isRunning()))
+        if running:
+            self.multi_start_btn.setEnabled(False)
+            self.run_btn.setEnabled(False)
+        else:
+            self._update_multi_selection_state()
+            self._update_run_button_state()
+
+    def _multi_row_key(self, payload: Mapping[str, Any]) -> tuple[str, str]:
+        # Return the stable table key for one problem/algorithm combination.
+        return str(payload.get("problem_key", "")), str(payload.get("algorithm_key", ""))
+
+    def _set_multi_table_value(self, row: int, column: int, value: Any) -> None:
+        # Store one display value in the Multi results table.
+        text = "" if value is None else str(value)
+        item = QTableWidgetItem(text)
+        item.setToolTip(text)
+        self.multi_results_table.setItem(row, column, item)
+
+    def _on_multi_run_started(self, payload: Mapping[str, Any]) -> None:
+        # Add a running combination to the Multi result table.
+        row = self.multi_results_table.rowCount()
+        self.multi_results_table.insertRow(row)
+        self._multi_result_rows[self._multi_row_key(payload)] = row
+        values = [
+            payload.get("run_index"),
+            payload.get("problem_name"),
+            payload.get("algorithm_name"),
+            "running",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+        ]
+        for column, value in enumerate(values):
+            self._set_multi_table_value(row, column, value)
+        self.multi_log.append(
+            f"Run {payload.get('run_index')}/{payload.get('total_runs')} started: "
+            f"{payload.get('algorithm_name')} on {payload.get('problem_name')}."
+        )
+
+    def _on_multi_run_progress(self, payload: Mapping[str, Any]) -> None:
+        # Update generation counters without creating any graphical visualization.
+        row = self._multi_result_rows.get(self._multi_row_key(payload))
+        if row is not None:
+            self._set_multi_table_value(row, 4, payload.get("n_gen"))
+            self._set_multi_table_value(row, 5, payload.get("n_eval"))
+            self._set_multi_table_value(row, 6, payload.get("n_nds"))
+        try:
+            run_index = max(1, int(payload.get("run_index", 1)))
+            generation = max(0, int(payload.get("n_gen", 0) or 0))
+        except (TypeError, ValueError):
+            return
+        bounded_generation = min(generation, int(self.multi_n_gen_spin.value()))
+        self.multi_progress.setValue((run_index - 1) * int(self.multi_n_gen_spin.value()) + bounded_generation)
+        self.multi_status_lbl.setText(
+            f"Status: run {run_index}/{payload.get('total_runs')}, generation "
+            f"{generation}/{self.multi_n_gen_spin.value()}"
+        )
+
+    def _on_multi_run_finished(self, payload: Mapping[str, Any]) -> None:
+        # Finalize one Multi table row and report its output files.
+        row = self._multi_result_rows.get(self._multi_row_key(payload))
+        if row is not None:
+            values = {
+                3: payload.get("status"),
+                4: payload.get("n_gen"),
+                5: payload.get("n_eval"),
+                6: payload.get("n_nds"),
+                7: payload.get("metrics_path"),
+                8: payload.get("solutions_path"),
+                9: payload.get("error"),
+            }
+            for column, value in values.items():
+                self._set_multi_table_value(row, column, value)
+        self.multi_log.append(
+            f"Run {payload.get('run_index')}/{payload.get('total_runs')} {payload.get('status')}: "
+            f"{payload.get('algorithm_name')} on {payload.get('problem_name')}."
+        )
+        if payload.get("metrics_path"):
+            self.multi_log.append(f"Metrics saved: {payload.get('metrics_path')}")
+        if payload.get("solutions_path"):
+            self.multi_log.append(f"Solutions saved: {payload.get('solutions_path')}")
+        if payload.get("error"):
+            self.multi_log.append(f"Error: {payload.get('error')}")
+
+    def start_multi_experiment(self) -> None:
+        # Validate and start the finite Cartesian Multi experiment.
+        if self._multi_thread and self._multi_thread.isRunning():
+            self.multi_log.append("Start ignored: a Multi experiment is already running.")
+            return
+        if self._thread and self._thread.isRunning():
+            QMessageBox.warning(self, "Run in progress", "Stop the Main run before starting a Multi experiment.")
+            return
+        problem_keys = self._checked_multi_keys(self.multi_problem_list)
+        algorithm_keys = self._checked_multi_keys(self.multi_algorithm_list)
+        if not problem_keys or not algorithm_keys:
+            QMessageBox.warning(self, "Missing selection", "Select at least one problem and one algorithm.")
+            return
+        n_gen = int(self.multi_n_gen_spin.value())
+        if n_gen < 1:
+            QMessageBox.warning(self, "Invalid generation limit", "Maximum generations must be at least 1.")
+            return
+        try:
+            specs = build_multi_run_specs(problem_keys, algorithm_keys)
+        except KeyError as exc:
+            QMessageBox.warning(self, "Invalid selection", str(exc))
+            return
+
+        seed = int(self.multi_seed_spin.value())
+        self.multi_results_table.setRowCount(0)
+        self.multi_log.clear()
+        self._multi_result_rows = {}
+        self.multi_progress.setRange(0, max(1, len(specs) * n_gen))
+        self.multi_progress.setValue(0)
+        self.multi_status_lbl.setText(f"Status: starting {len(specs)} runs")
+        self.multi_log.append(
+            f"Multi experiment started: {len(algorithm_keys)} algorithms × {len(problem_keys)} problems = "
+            f"{len(specs)} runs, maximum generations={n_gen}, seed={seed}."
+        )
+
+        self._multi_thread = MultiExperimentWorker(
+            specs,
+            n_gen=n_gen,
+            seed=seed,
+            project_root=Path(__file__).resolve().parents[2],
+            parent=self,
+        )
+        self._multi_thread.run_started.connect(self._on_multi_run_started)
+        self._multi_thread.run_progress.connect(self._on_multi_run_progress)
+        self._multi_thread.run_finished.connect(self._on_multi_run_finished)
+        self._multi_thread.done.connect(self._on_multi_experiment_done)
+        self._multi_thread.cancelled.connect(self._on_multi_experiment_cancelled)
+        self._multi_thread.failed.connect(self._on_multi_experiment_failed)
+        self._set_multi_running_state(True)
+        self._multi_thread.start()
+
+    def stop_multi_experiment(self) -> None:
+        # Request cooperative cancellation of the active Multi experiment.
+        if not self._multi_thread or not self._multi_thread.isRunning():
+            self.multi_log.append("Stop ignored: no Multi experiment is running.")
+            return
+        self._multi_thread.request_cancel()
+        self.multi_stop_btn.setEnabled(False)
+        self.multi_status_lbl.setText("Status: stopping")
+        self.multi_log.append("Cancellation requested; waiting for the current generation callback.")
+
+    def _finish_multi_experiment(self, status: str, results: Sequence[Mapping[str, Any]]) -> None:
+        # Restore controls and summarize terminal Multi experiment state.
+        total = len(results)
+        failed = sum(1 for result in results if result.get("status") == "failed")
+        completed = sum(1 for result in results if result.get("status") == "completed")
+        self._multi_thread = None
+        self._set_multi_running_state(False)
+        if status == "completed":
+            self.multi_progress.setValue(self.multi_progress.maximum())
+        self.multi_status_lbl.setText(
+            f"Status: {status}; completed={completed}, failed={failed}, processed={total}"
+        )
+        self.multi_log.append(
+            f"Multi experiment {status}: completed={completed}, failed={failed}, processed={total}."
+        )
+
+    def _on_multi_experiment_done(self, results: Sequence[Mapping[str, Any]]) -> None:
+        # Handle normal completion of every selected combination.
+        self._finish_multi_experiment("completed", results)
+
+    def _on_multi_experiment_cancelled(self, results: Sequence[Mapping[str, Any]]) -> None:
+        # Handle user cancellation while preserving already exported results.
+        self._finish_multi_experiment("cancelled", results)
+
+    def _on_multi_experiment_failed(self, error: str) -> None:
+        # Handle an unexpected worker-level failure.
+        self._multi_thread = None
+        self._set_multi_running_state(False)
+        self.multi_status_lbl.setText("Status: error")
+        self.multi_log.append(f"Multi experiment failed: {error}")
+        QMessageBox.warning(self, "Multi experiment error", error)
 
     def _entry(self, combo: QComboBox, registry: Mapping[str, Dict[str, Any]]) -> Dict[str, Any]:
         # Return the registry entry for the current combo-box selection.
@@ -1078,8 +1447,14 @@ class MainWindow(QMainWindow):
     def _set_run_state(self, status_text: str, running: bool) -> None:
         # Update run status text and Start/Stop button availability.
         self.status_lbl.setText(translate_ui_text(f"Status: {status_text}"))
-        self.run_btn.setEnabled(not running and self._validate_hv_manual_ref_point())
+        multi_running = bool(self._multi_thread and self._multi_thread.isRunning())
+        self.run_btn.setEnabled(not running and not multi_running and self._validate_hv_manual_ref_point())
         self.stop_btn.setEnabled(running)
+        self.clear_btn.setEnabled(not running and not multi_running)
+        if running:
+            self.multi_start_btn.setEnabled(False)
+        else:
+            self._update_multi_selection_state()
 
     def _apply_generation_payload(self, payload: Mapping[str, Any]) -> None:
         # Copy generation payload data into plot-state fields.
@@ -1343,7 +1718,9 @@ class MainWindow(QMainWindow):
     def _update_run_button_state(self) -> None:
         # Enable Start only when no run is active and HV configuration is valid.
         self.run_btn.setEnabled(
-            not (self._thread and self._thread.isRunning()) and self._validate_hv_manual_ref_point()
+            not (self._thread and self._thread.isRunning())
+            and not (self._multi_thread and self._multi_thread.isRunning())
+            and self._validate_hv_manual_ref_point()
         )
 
     def _update_plot_status(self, payload: Optional[dict] = None, message: Optional[str] = None) -> None:
@@ -1646,6 +2023,11 @@ class MainWindow(QMainWindow):
     def _prepare_run_visuals(self) -> None:
         # Reset run-specific visual state before starting a new optimization.
         self._reset_run_result_state()
+        self.metric_trajectories.reset(
+            self._run_algorithm_name,
+            self._run_problem_name,
+            delta_supported=is_delta_supported(self._run_algorithm_key, self._current_n_obj()),
+        )
         self._run_metrics_export_path = None
         self._run_solutions_export_path = None
         self._nd_solution_sheets = {}
@@ -1659,6 +2041,7 @@ class MainWindow(QMainWindow):
         self._set_run_state(status_text, running=False)
         if isinstance(last_payload, dict) and last_payload:
             self._append_last_payload_once(last_payload)
+            self.metric_trajectories.append_payload(last_payload)
             self._apply_generation_payload(last_payload)
             self._export_nondominated_solutions_for_final_epoch(last_payload)
             self._update_metrics_label(last_payload)
@@ -1677,6 +2060,7 @@ class MainWindow(QMainWindow):
             self._log(f"GEN diag: {message}")
         self._apply_generation_payload(payload)
         self._append_generation_row(payload)
+        self.metric_trajectories.append_payload(payload)
         self._export_nondominated_solutions_for_epoch(payload)
         self._update_metrics_label(payload)
         if self.live_updates.isChecked():
@@ -1686,6 +2070,13 @@ class MainWindow(QMainWindow):
         # Validate all forms, create the worker, and start the run.
         if self._thread and self._thread.isRunning():
             self._log("Start: a run is already in progress.")
+            return
+        if self._multi_thread and self._multi_thread.isRunning():
+            self._warn(
+                "Run in progress",
+                "Stop the Multi experiment before starting a Main run.",
+                "Start ignored: a Multi experiment is already running.",
+            )
             return
         if not self._validate_hv_manual_ref_point():
             self._warn(
@@ -1722,6 +2113,7 @@ class MainWindow(QMainWindow):
         _valid_ref_point, ref_point, _mode, _err = self._hv_ref_point_state()
         if ref_point is None:
             ref_point = self._auto_hv_ref_point()
+        self._run_algorithm_key = str(alg_key)
         self._run_algorithm_name = self.alg_combo.currentText() or str(alg_key)
         self._run_problem_name = self.problem_combo.currentText() or str(problem_key)
         self._run_nd_save_mode = str(nd_save_args["mode"])
@@ -1798,6 +2190,19 @@ class MainWindow(QMainWindow):
         self._update_metrics_label(None)
         self._render_plot()
         QMessageBox.warning(self, "Optimization error", err)
+
+    def _clear_console_and_visuals(self) -> None:
+        # Clear transient console and chart content without deleting exported result files.
+        if (self._thread and self._thread.isRunning()) or (
+            self._multi_thread and self._multi_thread.isRunning()
+        ):
+            return
+        self.text_out.clear()
+        self._plot_known_pf = None
+        self._reset_plot_run_data()
+        self._reset_plot_axes()
+        self._set_plot_message("No plot available. Start an optimization run.")
+        self.metric_trajectories.reset()
 
 
 def main() -> None:
