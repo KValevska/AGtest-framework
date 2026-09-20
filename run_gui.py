@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import sys
+from multiprocessing import freeze_support
 from pathlib import Path
 
 
@@ -28,7 +29,12 @@ def main() -> None:
     # Start the GUI application after preparing imports for a local source tree.
     # Returns:
     # None: Control is passed to the Qt application entry point.
+    freeze_support()
     _ensure_src_on_path()
+    if len(sys.argv) > 1 and sys.argv[1] == "--self-test":
+        from pymoo_gui.packaging_smoke import main as smoke_main
+
+        sys.exit(smoke_main(sys.argv[2:]))
     from pymoo_gui.app import main as gui_main
 
     gui_main()

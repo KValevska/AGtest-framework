@@ -3,9 +3,26 @@
 Desktop framework for configuring, running, visualizing, and exporting
 multi-objective optimization experiments based on `pymoo`.
 
-This README is intentionally implementation-oriented. It explains how the
-software is structured and gives exact repository-specific instructions for
-adding a new algorithm or a new problem.
+## Download for Windows (no Python needed)
+
+**[Open GitHub Releases to download the Windows EXE](https://github.com/SerafimaWA/Framework/releases)**
+
+1. Open a release and expand **Assets**.
+2. Download **AGtest-framework.exe** and put it in the folder where you want to
+   keep your experiments.
+3. Double-click the EXE. Python and pip are not required on the destination
+   Windows x64 computer.
+
+Results are saved beside the EXE in `metrics_tables` and `solution_tables`.
+The **Source code (zip)** and **Source code (tar.gz)** downloads contain the
+source code, not the ready-to-run application. If no EXE release is listed yet,
+use the [build instructions below](#standalone-windows-exe-no-python-needed).
+
+![AGtest-framework main window](figures/gui-main-window-kursawe-nsga3.png)
+
+The rest of this README covers installation from source, experiment workflows,
+and extending the framework. Maintainers can follow the
+[release publishing guide](docs/RELEASING.md) to upload a new EXE.
 
 ## Features
 
@@ -19,7 +36,7 @@ adding a new algorithm or a new problem.
 - `Multi` tab for finite Cartesian experiments across multiple algorithms and problems without plot rendering
 - `Metric trajectories` tab with one generation/value chart per metric for the current single experiment
 
-## Requirements
+## Requirements for running from source
 
 Recommended environment:
 
@@ -34,6 +51,43 @@ Recommended environment:
   - `platypus-opt`
 
 ## Install
+
+### Standalone Windows EXE (no Python needed)
+
+Download `AGtest-framework.exe` from
+[GitHub Releases](https://github.com/SerafimaWA/Framework/releases), or use
+`dist/AGtest-framework.exe` after a local build. Copy it to the destination Windows x64 computer and
+double-click it. This single file includes Python, the runtime libraries, Qt,
+and the local Pareto-front files. Python and pip are not needed on that computer.
+The first launch may take a little longer while the executable unpacks its libraries.
+
+Standalone results are saved **beside the EXE**, in the `metrics_tables` and
+`solution_tables` folders, regardless of the working directory. The application
+creates these folders automatically when saving results from Main or Multi runs.
+The exported `.xlsx` files persist after the program closes. Source-checkout runs
+continue to save results in the project folder. See
+[Naming and output directories](#naming-and-output-directories) for an example.
+
+To rebuild on Windows x64 with Python 3.11 installed:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\build_exe.ps1
+```
+
+The script creates `.venv-build`, installs dependencies, runs the tests, builds
+the EXE with PyInstaller, and tests a separate copy with Python removed from
+`PATH`. The EXE self-test checks the GUI, problem factories, bundled reference
+fronts, short algorithm runs, thread/process evaluation, and XLSX exports with
+network access disabled. Its report and the build dependency versions are stored
+in `build/`. A SHA-256 checksum is written to `dist/SHA256SUMS.txt` for publishing
+with the EXE. Use `-SkipInstall` for an offline rebuild once dependencies are installed.
+This check does not replace testing on a separate clean Windows computer.
+
+The packaging configuration follows the PyInstaller documentation for
+[single-file builds](https://pyinstaller.org/en/stable/spec-files.html) and
+[multiprocessing support](https://pyinstaller.org/en/stable/common-issues-and-pitfalls.html#multi-processing).
+
+### Install from source
 
 Install runtime dependencies from the project metadata:
 
@@ -618,9 +672,30 @@ Solution workbooks are written to:
 The filename includes sanitized algorithm and problem names. If a file already
 exists, the exporter appends `_1`, `_2`, and so on.
 
-These directory names are part of the current implementation. They are created
-automatically by the application when exports are
-written.
+When running **AGtest-framework.exe**, both output folders are created
+automatically **in the folder containing the EXE** when results are saved. This
+applies to both Main and Multi experiments, including launches through a shortcut
+or from another working directory.
+
+For example, if the executable is `D:\Experiments\AGtest-framework.exe`, the
+directory layout after exporting results is:
+
+```text
+D:\Experiments\
+    AGtest-framework.exe
+    metrics_tables\
+        ... .xlsx
+    solution_tables\
+        ... .xlsx
+```
+
+`metrics_tables` contains metric histories, and `solution_tables` contains
+nondominated solutions. Results remain available after the application closes.
+Moving the EXE changes where future results are saved; existing result folders
+are not moved automatically.
+
+When running from a source checkout with `python run_gui.py`, these folders are
+created in the project root.
 
 ## Parallel evaluation support
 

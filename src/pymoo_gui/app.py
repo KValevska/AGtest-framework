@@ -99,6 +99,7 @@ from .metrics import (
 from .multi import MultiExperimentWorker, build_multi_run_specs
 from .parallel import make_parallel_problem
 from .problems import PROBLEMS
+from .runtime import results_root
 from .viz.metric_trajectories import MetricTrajectoriesWidget
 from .viz.pareto_dialogs import UnifiedParetoWidget
 
@@ -1246,7 +1247,7 @@ class MainWindow(QMainWindow):
             specs,
             n_gen=n_gen,
             seed=seed,
-            project_root=Path(__file__).resolve().parents[2],
+            project_root=results_root(),
             parent=self,
         )
         self._multi_thread.run_started.connect(self._on_multi_run_started)
@@ -1826,7 +1827,7 @@ class MainWindow(QMainWindow):
             self._log("Metrics export skipped: the history table is empty.")
             return
         headers, rows = self._metrics_table_data()
-        project_root = Path(__file__).resolve().parents[2]
+        project_root = results_root()
         path = self._run_metrics_export_path or metrics_export_path(
             project_root,
             self._run_algorithm_name or self.alg_combo.currentText(),
@@ -1894,7 +1895,7 @@ class MainWindow(QMainWindow):
 
     def _export_solution_table(self, payload: Mapping[str, Any]) -> None:
         # Export final nondominated points to the project solution-table directory.
-        project_root = Path(__file__).resolve().parents[2]
+        project_root = results_root()
         algorithm_name = self._run_algorithm_name or self.alg_combo.currentText()
         problem_name = self._run_problem_name or self.problem_combo.currentText()
         path = self._run_solutions_export_path or solutions_export_path(project_root, algorithm_name, problem_name)
@@ -2119,7 +2120,7 @@ class MainWindow(QMainWindow):
         self._run_nd_save_mode = str(nd_save_args["mode"])
         self._run_nd_save_step = int(nd_save_args["step"])
         self._prepare_run_visuals()
-        project_root = Path(__file__).resolve().parents[2]
+        project_root = results_root()
         self._run_metrics_export_path = next_available_export_path(
             metrics_export_path(project_root, self._run_algorithm_name, self._run_problem_name)
         )

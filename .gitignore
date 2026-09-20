@@ -11,12 +11,20 @@ tmp*/
 
 # Virtual environments
 .venv/
+.venv-build/
 venv/
 env/
+
+# Generated builds (publish the EXE as a GitHub Release asset)
+build/
+dist/
+*.exe
 
 # IDE and local tooling
 .idea/
 .vscode/
+.agents/
+.codex/
 
 # GUI runtime exports
 metrics_tables/
