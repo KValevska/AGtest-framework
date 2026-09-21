@@ -1,7 +1,7 @@
 # Publishing a Windows release
 
 Publish the standalone executable as an asset in
-[GitHub Releases](https://github.com/SerafimaWA/Framework/releases).
+[GitHub Releases](https://github.com/KValevska/AGtest-framework/releases).
 The repository contains the source and build configuration; `dist/` is a local
 build output and is intentionally ignored by Git.
 
@@ -35,9 +35,9 @@ does this automatically after verification.
 ## Publish on GitHub
 
 1. Open the repository's **Releases** page and choose **Draft a new release**.
-2. Select or create an unused version tag, such as `v0.1.0`, pointing to the
+2. Select or create an unused version tag, such as `v0.1`, pointing to the
    commit used to build the executable.
-3. Use a descriptive title, such as **AGtest-framework v0.1.0 — Windows x64**.
+3. Use a descriptive title, such as **AGtest-framework v0.1 — Windows x64**.
 4. Attach the EXE and checksum from `dist/` as release assets.
 5. Add release notes, using the template below, and publish when ready.
 

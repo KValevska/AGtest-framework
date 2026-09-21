@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "AGtest-framework"
-version = "0.1.0"
+version = "0.1"
 description = "Desktop framework for configuring and analyzing multi-objective optimization experiments"
 readme = "README.md"
 license = { file = "LICENSE" }

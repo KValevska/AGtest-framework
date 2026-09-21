@@ -7,7 +7,7 @@ multi-objective optimization experiments based on `pymoo`.
 
 ## Download for Windows (no Python needed)
 
-**[Open GitHub Releases to download the Windows EXE](https://github.com/SerafimaWA/Framework/releases)**
+**[Open GitHub Releases to download the Windows EXE](https://github.com/KValevska/AGtest-framework/releases)**
 
 1. Open a release and expand **Assets**.
 2. Download **AGtest-framework.exe** and put it in the folder where you want to
@@ -57,7 +57,7 @@ Recommended environment:
 ### Standalone Windows EXE (no Python needed)
 
 Download `AGtest-framework.exe` from
-[GitHub Releases](https://github.com/SerafimaWA/Framework/releases), or use
+[GitHub Releases](https://github.com/KValevska/AGtest-framework/releases), or use
 `dist/AGtest-framework.exe` after a local build. Copy it to the destination Windows x64 computer and
 double-click it. This single file includes Python, the runtime libraries, Qt,
 and the local Pareto-front files. Python and pip are not needed on that computer.
@@ -759,10 +759,10 @@ The project is archived on Zenodo:
 ```bibtex
 @software{agtest_framework,
   title = {AGtest-framework},
-  author = {Valevska, Kristina},
+  author = {Valevska, Kristina and Rudziński, Filip},
   year = {2026},
-  version = {0.1.0},
+  version = {0.1},
   doi = {10.5281/zenodo.22863482},
-  url = {https://github.com/SerafimaWA/Framework/releases/tag/v0.1.0}
+  url = {https://github.com/KValevska/AGtest-framework}
 }
 ```
