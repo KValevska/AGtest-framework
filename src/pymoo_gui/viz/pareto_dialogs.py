@@ -18,10 +18,13 @@ import pyqtgraph as pg
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
+from matplotlib.ticker import AutoLocator, MultipleLocator
+from pyqtgraph.exporters import ImageExporter
+from pyqtgraph.graphicsItems.LegendItem import ItemSample
 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QPalette
-from PyQt5.QtWidgets import QDialog, QVBoxLayout, QWidget
+from PyQt5.QtCore import QPointF, Qt
+from PyQt5.QtGui import QFont, QPainter, QPalette
+from PyQt5.QtWidgets import QDialog, QGraphicsItem, QVBoxLayout, QWidget
 
 
 def _compute_stable_limits(
@@ -58,6 +61,17 @@ def _compute_stable_limits(
     span = maxs - mins
     pads = np.where(span > 0, span * 0.03, np.maximum(np.abs(mins) * 0.05, 1e-6))
     return mins - pads, maxs + pads
+
+
+class _UniformLegendSample(ItemSample):
+    # Keep legend symbols equally sized without changing the plotted points.
+    def paint(self, painter, *args):
+        if not self.item.isVisible():
+            return super().paint(painter, *args)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setPen(pg.mkPen(self.item.opts["pen"]))
+        painter.setBrush(pg.mkBrush(self.item.opts["brush"]))
+        painter.drawEllipse(QPointF(10, 10), 5, 5)
 
 
 class PyQtGraphParetoDialog(QDialog):
@@ -105,7 +119,13 @@ class PyQtGraphParetoDialog(QDialog):
         self.plot = self.view.addPlot()
         self.plot.getViewBox().setBackgroundColor((255, 255, 255, 255))
         self.plot.showGrid(x=True, y=True, alpha=0.3)
-        self.plot.addLegend(offset=(10, 10))
+        self.plot.getViewBox().setBorder(pg.mkPen("k"))
+        legend = self.plot.addLegend(
+            offset=(10, -10), labelTextSize="12pt", sampleType=_UniformLegendSample,
+        )
+        # The legend belongs to the ViewBox, outside its data transform. Allow it
+        # to scale with the scene so high-resolution PNGs keep the same proportions.
+        legend.setFlag(QGraphicsItem.ItemIgnoresTransformations, False)
 
         front = np.asarray(ideal_front) if ideal_front is not None else np.empty((0, 2))
         if front.ndim == 2 and front.shape[1] >= 2:
@@ -118,7 +138,7 @@ class PyQtGraphParetoDialog(QDialog):
         self._fr_min_y = 0.0
         self._fr_max_y = 1.0
 
-        self.scatter_ref = pg.ScatterPlotItem(size=6, pen=None, brush=pg.mkBrush(0, 102, 204, 200))
+        self.scatter_ref = pg.ScatterPlotItem(size=5, pen=None, brush=pg.mkBrush(0, 102, 204, 200))
         self.plot.addItem(self.scatter_ref)
         if self.plot.legend is not None:
             self.plot.legend.addItem(self.scatter_ref, self.ref_label)
@@ -130,7 +150,8 @@ class PyQtGraphParetoDialog(QDialog):
             self._fr_min_y = float(self.ref_front[:, 1].min())
             self._fr_max_y = float(self.ref_front[:, 1].max())
 
-        self.scatter_front = pg.ScatterPlotItem(size=8, pen=None, brush=pg.mkBrush(220, 20, 60, 210))
+        self.scatter_front = pg.ScatterPlotItem(size=12, pen=None, brush=pg.mkBrush(220, 20, 60, 230))
+        self.scatter_front.setZValue(10)
         self.plot.addItem(self.scatter_front)
         if self.plot.legend is not None:
             self.plot.legend.addItem(self.scatter_front, self.front_label)
@@ -140,10 +161,31 @@ class PyQtGraphParetoDialog(QDialog):
         if self.plot.legend is not None:
             self.plot.legend.addItem(self.scatter_pop, self.point_label)
 
-        self.plot.setLabel("bottom", self.axis_labels[0])
-        self.plot.setLabel("left", self.axis_labels[1])
-        self.plot.setTitle(self.base_title)
+        for name, label in zip(("bottom", "left"), self.axis_labels):
+            self.plot.setLabel(name, label, **{"font-size": "18pt"})
+            self.plot.getAxis(name).setStyle(tickFont=QFont("Arial", 14))
+        self._set_plot_title(self.base_title)
         self.plot.enableAutoRange(False)
+
+    def _set_plot_title(self, title: str) -> None:
+        self.plot.setTitle(title, size="18pt")
+        # PlotItem reserves only 30 pixels by default, which clips larger titles.
+        height = self.plot.titleLabel.itemRect().height() + 8
+        self.plot.titleLabel.setMaximumHeight(height)
+        self.plot.layout.setRowFixedHeight(0, height)
+
+    def set_grid(self, visible: bool, spacing: float = 0.0) -> None:
+        self.plot.showGrid(x=visible, y=visible, alpha=0.3)
+        for name in ("bottom", "left"):
+            axis = self.plot.getAxis(name)
+            axis.setTickSpacing(levels=[(spacing, 0.0)] if spacing > 0 else None)
+
+    def export_png(self, path: str) -> None:
+        # Export the complete PlotItem, including axes, border, title and legend.
+        exporter = ImageExporter(self.plot)
+        exporter.parameters()["width"] = max(1800, int(self.plot.width() * 2))
+        if not exporter.export(toBytes=True).save(str(path), "PNG"):
+            raise OSError(f"Could not save PNG: {path}")
 
     def set_auto_scale(self, enabled: bool) -> None:
         # Enable or disable automatic axis-limit initialization.
@@ -260,10 +302,50 @@ class PyQtGraphParetoDialog(QDialog):
             except Exception:
                 gen_val = None
             if gen_val is not None:
-                self.plot.setTitle(f"{self.base_title} | iter={gen_val}")
+                self._set_plot_title(f"{self.base_title} | iter={gen_val}")
 
 
-class MatplotlibParetoDialog(QDialog):
+class _MatplotlibPlotControls:
+    def _add_legend(self) -> None:
+        if hasattr(self.ax, "zaxis"):
+            # Keep the bottom-left legend clear of the projected 3D axis labels.
+            legend = self.ax.legend(
+                loc="lower left", fontsize=12, bbox_to_anchor=(0.02, 0.02),
+                bbox_transform=self.fig.transFigure,
+            )
+            legend.set_in_layout(False)
+        else:
+            legend = self.ax.legend(loc="lower left", fontsize=12)
+        for handle in legend.legend_handles:
+            handle.set_sizes([64])
+
+    def _style_axes(self) -> None:
+        self.ax.tick_params(axis="both", labelsize=14)
+        for axis in self._plot_axes():
+            axis.label.set_fontsize(18)
+            axis.labelpad = 12
+            axis.set_tick_params(labelsize=14)
+        self.scatter_front.set_sizes([70])
+        self.scatter_front.set_alpha(0.9)
+        self.scatter_front.set_zorder(10)
+
+    def _plot_axes(self):
+        axes = [self.ax.xaxis, self.ax.yaxis]
+        if hasattr(self.ax, "zaxis"):
+            axes.append(self.ax.zaxis)
+        return axes
+
+    def set_grid(self, visible: bool, spacing: float = 0.0) -> None:
+        for axis in self._plot_axes():
+            axis.set_major_locator(MultipleLocator(spacing) if spacing > 0 else AutoLocator())
+        self.ax.grid(visible)
+        self.canvas.draw_idle()
+
+    def export_png(self, path: str) -> None:
+        self.fig.savefig(str(path), format="png", dpi=200, bbox_inches="tight", facecolor="white")
+
+
+class MatplotlibParetoDialog(_MatplotlibPlotControls, QDialog):
     # Matplotlib-based Pareto plot supporting 2D and 3D displays.
 
     def __init__(
@@ -311,7 +393,7 @@ class MatplotlibParetoDialog(QDialog):
         else:
             self.ax = self.fig.add_subplot(111)
 
-        self.ax.set_title(self.base_title, fontsize=14)
+        self.ax.set_title(self.base_title, fontsize=18)
         self.canvas = FigureCanvas(self.fig)
         self.toolbar = NavigationToolbar(self.canvas, self)
 
@@ -324,11 +406,11 @@ class MatplotlibParetoDialog(QDialog):
         pop_color = "#808080"
 
         if self.dim == 3:
-            self.scatter_ref = self.ax.scatter([], [], [], s=12, alpha=0.45, label=self.ref_label, color=ref_color)
+            self.scatter_ref = self.ax.scatter([], [], [], s=9, alpha=0.45, label=self.ref_label, color=ref_color)
             self.scatter_front = self.ax.scatter([], [], [], s=20, alpha=0.55, label=self.front_label, color=front_color)
             self.scatter_pop = self.ax.scatter([], [], [], s=25, label=self.point_label, color=pop_color)
         else:
-            self.scatter_ref = self.ax.scatter([], [], s=12, alpha=0.45, label=self.ref_label, color=ref_color)
+            self.scatter_ref = self.ax.scatter([], [], s=9, alpha=0.45, label=self.ref_label, color=ref_color)
             self.scatter_front = self.ax.scatter([], [], s=20, alpha=0.55, label=self.front_label, color=front_color)
             self.scatter_pop = self.ax.scatter([], [], s=25, label=self.point_label, color=pop_color)
 
@@ -344,7 +426,7 @@ class MatplotlibParetoDialog(QDialog):
             self.ax.set_zlabel(self.axis_labels[2])
 
         self.ax.grid(True, alpha=0.3)
-        self.ax.legend(loc="upper right")
+        self._add_legend()
 
         if self.equal_aspect:
             self._apply_equal_aspect()
@@ -352,7 +434,9 @@ class MatplotlibParetoDialog(QDialog):
         if self.dim == 3:
             self.ax.view_init(elev=25, azim=135)
 
-        self.fig.tight_layout()
+        self._style_axes()
+        self.fig.tight_layout(rect=(0, 0.18, 1, 1) if self.dim == 3 else None)
+        self.ax.get_legend().set_in_layout(True)
 
     def _apply_equal_aspect(self) -> None:
         # Apply equal axis aspect for comparable visual scale.
@@ -478,7 +562,7 @@ class MatplotlibParetoDialog(QDialog):
             except Exception:
                 gen_val = None
             if gen_val is not None:
-                self.ax.set_title(f"{self.base_title} | iter={gen_val}", fontsize=14)
+                self.ax.set_title(f"{self.base_title} | iter={gen_val}", fontsize=18)
         self.canvas.draw_idle()
 
     def set_auto_scale(self, enabled: bool) -> None:
@@ -498,7 +582,7 @@ class MatplotlibParetoDialog(QDialog):
             return None
 
 
-class OneDParetoDialog(QDialog):
+class OneDParetoDialog(_MatplotlibPlotControls, QDialog):
     # One-objective Pareto plot using point index on the x-axis and objective value on y.
 
     def __init__(
@@ -530,7 +614,7 @@ class OneDParetoDialog(QDialog):
 
         self.fig = plt.figure(figsize=(8, 6))
         self.ax = self.fig.add_subplot(111)
-        self.ax.set_title(self.base_title, fontsize=14)
+        self.ax.set_title(self.base_title, fontsize=18)
         self.canvas = FigureCanvas(self.fig)
         self.toolbar = NavigationToolbar(self.canvas, self)
 
@@ -542,7 +626,7 @@ class OneDParetoDialog(QDialog):
         front_color = "#dc143c"
         pop_color = "#808080"
 
-        self.scatter_ref = self.ax.scatter([], [], s=18, alpha=0.6, label=self.ref_label, color=ref_color)
+        self.scatter_ref = self.ax.scatter([], [], s=14, alpha=0.6, label=self.ref_label, color=ref_color)
         self.scatter_front = self.ax.scatter([], [], s=20, alpha=0.6, label=self.front_label, color=front_color)
         self.scatter_pop = self.ax.scatter([], [], s=25, label=self.point_label, color=pop_color)
 
@@ -553,7 +637,8 @@ class OneDParetoDialog(QDialog):
         self.ax.set_xlabel("Index")
         self.ax.set_ylabel(self.axis_label)
         self.ax.grid(True, alpha=0.3)
-        self.ax.legend(loc="upper right")
+        self._add_legend()
+        self._style_axes()
         self.fig.tight_layout()
 
     def set_auto_scale(self, enabled: bool) -> None:
@@ -678,7 +763,7 @@ class OneDParetoDialog(QDialog):
             except Exception:
                 gen_val = None
             if gen_val is not None:
-                self.ax.set_title(f"{self.base_title} | iter={gen_val}", fontsize=14)
+                self.ax.set_title(f"{self.base_title} | iter={gen_val}", fontsize=18)
         self.canvas.draw_idle()
 
 

@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <title>AGtest-framework v0.1 — raport techniczny</title>
+  <style>
+    @page { size: A4; margin: 16mm 17mm 18mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: #273340; font: 10pt/1.48 Arial, sans-serif; }
+    h1, h2, h3 { color: #193a5a; page-break-after: avoid; }
+    h1 { margin: 0 0 7mm; font-size: 29pt; line-height: 1.12; }
+    h2 { margin: 7mm 0 3mm; padding-bottom: 1.5mm; border-bottom: 1px solid #9eb7cd; font-size: 18pt; }
+    h3 { margin: 5mm 0 2mm; font-size: 13.5pt; }
+    p, ul, ol, table, figure { margin-top: 0; margin-bottom: 3.5mm; }
+    ul, ol { padding-left: 7mm; }
+    li { margin-bottom: 1mm; }
+    code { padding: .2mm 1mm; background: #edf3f7; color: #214a6d; font: 8.7pt Consolas, monospace; }
+    table { width: 100%; border-collapse: collapse; page-break-inside: avoid; }
+    th, td { padding: 2.2mm 2.5mm; border: 1px solid #bdcddd; text-align: left; vertical-align: top; }
+    th { background: #e2edf4; color: #193a5a; }
+    .cover { min-height: 250mm; padding-top: 57mm; page-break-after: always; }
+    .kicker { margin-bottom: 8mm; color: #2674a8; font-size: 12pt; font-weight: 700; letter-spacing: .15em; }
+    .subtitle { max-width: 165mm; color: #596f84; font-size: 16pt; line-height: 1.5; }
+    .meta { width: 100mm; margin-top: 18mm; padding: 6mm; border-left: 4px solid #2a7daf; background: #edf3f7; }
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3.5mm; margin: 5mm 0; }
+    .stat { min-height: 27mm; padding: 5mm 2mm 3mm; border: 1px solid #bfd0df; border-top: 3px solid #2878aa; background: #f4f8fb; text-align: center; }
+    .stat strong { display: block; color: #193a5a; font-size: 21pt; }
+    .callout { margin: 5mm 0; padding: 4.5mm 5mm; border-left: 4px solid #287eb3; background: #edf4f8; page-break-inside: avoid; }
+    .warning { border-left-color: #ce751e; background: #fff4e9; }
+    .success { border-left-color: #39875a; background: #edf8f1; }
+    .priority { display: inline-block; margin-right: 2mm; padding: .8mm 3mm; border-radius: 4mm; color: white; background: #bd3937; font-size: 8.5pt; font-weight: bold; }
+    .priority.p2 { background: #d17823; }
+    .priority.p3 { background: #55758e; }
+    .status { display: inline-block; margin-left: 2mm; padding: .5mm 2.5mm; border-radius: 3mm; color: #24583a; background: #dcefe3; font-size: 8pt; font-weight: bold; }
+    .status.open { color: #7a451c; background: #f9e7d4; }
+    .page-break { page-break-before: always; }
+    figure { page-break-inside: avoid; }
+    figure img { width: 100%; max-height: 184mm; object-fit: contain; border: 1px solid #aabcca; }
+    figcaption { margin-top: 2mm; color: #61768a; font-size: 8.5pt; }
+    .small { color: #61768a; font-size: 8.5pt; }
+  </style>
+</head>
+<body>
+  <section class="cover">
+    <div class="kicker">RAPORT TECHNICZNY</div>
+    <h1>AGtest-framework v0.1</h1>
+    <p class="subtitle">Analiza struktury projektu, kodu, aktualnej funkcjonalności, wyników weryfikacji oraz rekomendowanego kierunku dalszego rozwoju.</p>
+    <div class="meta">
+      <strong>Projekt:</strong> pymoo_gui_framework<br>
+      <strong>Typ:</strong> desktopowy framework eksperymentów MOEA<br>
+      <strong>Technologie:</strong> Python, PyQt5, pymoo, Platypus, NumPy<br>
+      <strong>Wersja:</strong> v0.1<br>
+      <strong>Data aktualizacji:</strong> 22 września 2026<br>
+      <strong>Zakres:</strong> struktura, runtime, GUI, metryki, eksport, testy, EXE
+    </div>
+  </section>
+
+  <h2>1. Podsumowanie wykonawcze</h2>
+  <p>Framework jest działającą aplikacją eksperymentalną do optymalizacji wielokryterialnej, a nie tylko prostym interfejsem do biblioteki <code>pymoo</code>. Ma własne rejestry komponentów, implementacje i adaptery algorytmów, benchmarki, warstwę metryk, eksport XLSX, wykonywanie wsadowe, interaktywną historię epok oraz wizualizację wyników.</p>
+  <div class="stats">
+    <div class="stat"><strong>17</strong>algorytmów</div><div class="stat"><strong>62</strong>konfiguracje problemów</div><div class="stat"><strong>8</strong>metryk jakości</div>
+    <div class="stat"><strong>3</strong>karty GUI</div><div class="stat"><strong>92</strong>testy</div><div class="stat"><strong>580</strong>deklaracji runtime</div>
+  </div>
+  <div class="callout"><strong>Ocena:</strong> zakres funkcjonalny pozwala prowadzić eksperymenty i przygotowywać wyniki bez pisania osobnego skryptu. Od poprzedniej analizy istotnie rozbudowano sterowanie przebiegiem, eksport grafiki, metrykę Delta, testy GUI oraz proces wydania samodzielnego EXE. Nadal najważniejsze są: zgodność algorytm–problem, problemowe punkty HV, powtórzenia statystyczne i pełne metadane eksperymentu.</div>
+
+  <h2>2. Struktura projektu</h2>
+  <table>
+    <tr><th>Element</th><th>Odpowiedzialność</th></tr>
+    <tr><td><code>src/pymoo_gui/app.py</code></td><td>Główne GUI, dynamiczne formularze, walidacja, sterowanie ciągłe i krokowe, historia epok, tabele, komunikaty i eksport.</td></tr>
+    <tr><td><code>src/pymoo_gui/algorithms</code></td><td>Rejestr algorytmów, implementacje, adaptery oraz wspólny dispatcher <code>minimize</code>.</td></tr>
+    <tr><td><code>algorithms/common.py</code></td><td>Callback generacji, normalizacja populacji, wybór rozwiązań dopuszczalnych i niezdominowanych oraz wywołanie metryk.</td></tr>
+    <tr><td><code>src/pymoo_gui/problems</code></td><td>Lokalne benchmarki, rejestr problemów, fabryki oraz ładowanie znanych frontów Pareto.</td></tr>
+    <tr><td><code>metrics/quality.py</code></td><td>Obliczanie wskaźników jakości, w tym uogólnionej Delta i KKTPM.</td></tr>
+    <tr><td><code>metrics/export.py</code></td><td>Generowanie arkuszy XLSX bez zależności od pandas lub openpyxl.</td></tr>
+    <tr><td><code>multi.py</code></td><td>Wsadowe wykonywanie iloczynu problemów i algorytmów oraz trwały zapis częściowych wyników.</td></tr>
+    <tr><td><code>parallel.py</code></td><td>Opcjonalna ewaluacja osobników przez pulę procesów lub wątków.</td></tr>
+    <tr><td><code>viz</code></td><td>Wizualizacja Pareto 1D/2D/3D, siatka, eksport PNG i przebiegi metryk.</td></tr>
+    <tr><td><code>scripts</code></td><td>Weryfikacja EXE oraz automatyczne generowanie aktualnego katalogu funkcji.</td></tr>
+    <tr><td><code>tests</code></td><td>Testy rejestrów, algorytmów, metryk, GUI, trybu krokowego, wykresów, Multi i ścieżek runtime.</td></tr>
+  </table>
+  <p>Uruchomienie rozpoczyna się w <code>run_gui.py</code> lub przez entry point <code>AGtest-framework</code>. <code>MainWindow</code> buduje interfejs z rejestrów <code>PROBLEMS</code> i <code>ALGORITHMS</code>. Obliczenia odbywają się poza wątkiem GUI. Standardowe algorytmy trafiają do <code>pymoo.optimize.minimize</code>, natomiast adaptery i algorytmy badawcze mogą udostępniać własne <code>gui_minimize</code>.</p>
+  <p>Historyczny pakiet <code>pymoo_gui.algoritms</code> pozostaje aliasem zgodności wstecznej dla kanonicznego <code>pymoo_gui.algorithms</code>.</p>
+
+  <div class="page-break"></div>
+  <h2>3. Aktualna funkcjonalność</h2>
+  <h3>3.1. Karta Main</h3>
+  <p>Karta obsługuje kompletny pojedynczy eksperyment:</p>
+  <ul>
+    <li>wybór problemu i algorytmu z rejestrów oraz dynamiczne formularze parametrów;</li>
+    <li>walidację liczb, wartości logicznych, wyborów i danych ogólnych;</li>
+    <li>konfigurację liczby generacji, ziarna, komunikatów i ewaluacji równoległej;</li>
+    <li>automatyczny albo ręczny punkt referencyjny hiperobjętości;</li>
+    <li>podgląd frontu Pareto, populacji i rozwiązań niezdominowanych;</li>
+    <li>tabelę metryk dla generacji, trajektorie, konsolę i automatyczny eksport.</li>
+  </ul>
+  <h3>3.2. RAN, RAN step i historia epok <span class="status">ROZBUDOWANO</span></h3>
+  <p>Tryb <strong>RAN</strong> nie narzuca limitu generacji. Nowy <strong>RAN step</strong> uruchamia obliczenia bez limitu, zatrzymuje worker po pierwszej generacji i wymaga jawnego polecenia kolejnego kroku. Synchronizacja opiera się na warunku wątku, nie kolejkuje wielokrotnych szybkich kliknięć i reaguje na zatrzymanie oraz zamknięcie okna.</p>
+  <p>Każda migawka wykresu jest kopiowana do historii. Użytkownik może przejść do poprzedniej lub następnej obliczonej epoki, podać numer albo wrócić przez <strong>Latest</strong>. Przeglądanie starej epoki nie zatrzymuje rejestrowania nowych metryk.</p>
+  <h3>3.3. Sterowanie wykresem i eksport PNG <span class="status">NOWE</span></h3>
+  <ul>
+    <li>przełącznik siatki oraz ręczny krok podziałki z trybem automatycznym;</li>
+    <li>większe etykiety osi i wyraźniejsze punkty rozwiązań niezdominowanych;</li>
+    <li>zachowanie bieżących zakresów osi oraz kąta widoku 3D;</li>
+    <li><strong>Export PNG</strong> zapisujący kompletny wykres z osiami, legendą i tytułem;</li>
+    <li><strong>Screenshot</strong> zapisujący całe okno, w tym aktywną kartę, ustawienia i konsolę;</li>
+    <li>kwadratowy układ startowy i ograniczona wysokość dolnej konsoli.</li>
+  </ul>
+  <h3>3.4. Karta Multi</h3>
+  <p>Karta wykonuje iloczyn <strong>wybrane problemy × wybrane algorytmy</strong>. Obsługuje wielokrotny wybór, limit generacji, wspólne ziarno, pasek postępu, status kombinacji, anulowanie i kontynuowanie po błędzie pojedynczego uruchomienia. Wyniki zakończonych lub częściowo wykonanych przebiegów są zachowywane; każda kombinacja otrzymuje osobny plik metryk i rozwiązań. Karta celowo nie renderuje wykresów.</p>
+  <p><strong>Ograniczenie:</strong> Multi nadal używa domyślnych parametrów rejestru i jednego ziarna dla wszystkich kombinacji.</p>
+  <h3>3.5. Karta Metric trajectories</h3>
+  <p>Karta pokazuje osiem osobnych wykresów wartości względem generacji: IGD, GD, IGD+, GD+, Spread, Delta, HV i KKTPM. Brak poprawnej wartości jest oznaczany jako <code>N/A</code>. Eksperymenty Multi nie zmieniają tych wykresów. Dla Spread, Delta i KKTPM wyłączono skróty SI, aby prezentować pełne wartości dziesiętne.</p>
+
+  <div class="page-break"></div>
+  <h3>3.6. Algorytmy</h3>
+  <p>Zarejestrowane są: AGE-MOEA, Eps-MOEA, Eps-NSGA-II, GDE3, HypE, IBEA, Learning-across-problems EDMO, LMOEA-DS, MOEAD, MOEA/D z rodziny epsilon przez Platypus, NSGA-II, NSGA-III, R-NSGA-III, RVEA, SPEA2, RNN-guided DMO oraz TS-NSGA.</p>
+  <p>Framework integruje standardowy obiekt pymoo, adapter biblioteki zewnętrznej albo własny algorytm z metodą <code>gui_minimize</code>. <code>empty_algorithm_template.py</code> pozostaje punktem startowym nowej implementacji.</p>
+  <h3>3.7. Problemy benchmarkowe</h3>
+  <table>
+    <tr><th>Rodzina</th><th>Liczba konfiguracji</th><th>Zakres</th></tr>
+    <tr><td>Lokalne</td><td>12</td><td>Binh2, ConstrEx, FON, Golinski, Kursawe, Osyczka2, Schaffer, Srinivas, Tanaka, Viennet2, Viennet3, Water</td></tr>
+    <tr><td>ZDT</td><td>6</td><td>ZDT1–ZDT6</td></tr><tr><td>DTLZ</td><td>7</td><td>DTLZ1–DTLZ7</td></tr>
+    <tr><td>LZ09</td><td>9</td><td>LZ09_F1–LZ09_F9</td></tr><tr><td>UF</td><td>10</td><td>UF1–UF10</td></tr>
+    <tr><td>WFG</td><td>18</td><td>WFG1–WFG9, każdy osobno w 2D i 3D</td></tr>
+  </table>
+  <p>Łącznie rejestr udostępnia 62 konfiguracje. Pakiet samodzielny zawiera 49 lokalnych plików <code>.pf</code>. <code>empty_benchmark_template.py</code> dostarcza klasę zgodną z pymoo, walidację, wektorowe <code>_evaluate</code>, fabrykę, generator frontu i metadane formularza.</p>
+  <h3>3.8. Metryki i warunki dostępności</h3>
+  <table>
+    <tr><th>Metryka</th><th>Warunki i obecne zachowanie</th></tr>
+    <tr><td>HV</td><td>Wymaga punktu referencyjnego o wymiarze zgodnym z liczbą celów.</td></tr>
+    <tr><td>GD / IGD</td><td>Wymagają znanego frontu Pareto i zgodnej liczby celów.</td></tr>
+    <tr><td>GD+ / IGD+</td><td>Jak wyżej; używają implementacji wskaźników z pymoo.</td></tr>
+    <tr><td>Spread</td><td>Obliczany z bieżącego zbioru celów jako znormalizowana miara odległości punktów.</td></tr>
+    <tr><td>Delta</td><td>Uogólniona dla wszystkich algorytmów i 2, 3, 5 oraz większej liczby celów; uwzględnia brak ekstremów i nierównomierność rozstawu.</td></tr>
+    <tr><td>KKTPM</td><td>Wymaga zmiennych decyzyjnych i problemu; wykorzystuje pochodne analityczne albo różnice skończone.</td></tr>
+  </table>
+  <p>Callback filtruje rozwiązania niedopuszczalne, wyznacza front niezdominowany i dopiero na nim oblicza wskaźniki. Do GUI trafiają także <code>n_gen</code>, <code>n_eval</code> i <code>n_nds</code>.</p>
+  <h3>3.9. Eksport i ścieżki wyników</h3>
+  <p>Framework buduje skoroszyty XLSX bez pandas i openpyxl. Plik metryk zawiera historię generacji, ewaluacji, liczby rozwiązań niezdominowanych i wskaźników. Plik rozwiązań zawiera identyfikator, wartości <code>f1...fN</code> oraz — gdy są dostępne — zmienne <code>x1...xN</code>. Rozwiązania można zapisywać dla ostatniej generacji, co N generacji albo kaskadowo.</p>
+  <p>W uruchomieniu źródłowym wyniki trafiają do katalogu projektu. W samodzielnym EXE foldery <code>metrics_tables</code> i <code>solution_tables</code> są tworzone obok pliku wykonywalnego, niezależnie od katalogu roboczego.</p>
+
+  <h2>4. Aktualny interfejs v0.1</h2>
+  <figure><img src="../figures/gui-main-window-tanaka-rvea-v0.1.png" alt="Aktualny interfejs AGtest-framework v0.1"><figcaption>Rys. 1. Aktualny interfejs: trzy karty, RAN step, historia epok, kontrola siatki, eksport PNG, rozbudowana tabela metryk i przycisk Screenshot.</figcaption></figure>
+
+  <div class="page-break"></div>
+  <h2>5. Wyniki weryfikacji</h2>
+  <ul>
+    <li>Wszystkie <strong>92 testy</strong> repozytorium przechodzą.</li>
+    <li>Testy obejmują uogólnioną Delta, trajektorie metryk, sterowanie wykresem, RAN step, historię epok, zamykanie zatrzymanego workera, geometrię okna i eksport PNG.</li>
+    <li>Samodzielny EXE zweryfikował wszystkie <strong>62 fabryki problemów</strong>.</li>
+    <li>W paczce znaleziono i wczytano <strong>49 plików frontów referencyjnych</strong>.</li>
+    <li>Wszystkie <strong>17 algorytmów</strong> wykonało krótkie przebiegi na problemie Kursawe.</li>
+    <li>Sprawdzono ewaluację thread/process oraz poprawność eksportowanych skoroszytów XLSX.</li>
+    <li>Test EXE wykonano poza źródłami, bez Pythona w <code>PATH</code> i z zablokowaną siecią.</li>
+  </ul>
+  <div class="callout success"><strong>Wydanie Windows:</strong> <code>AGtest-framework.exe</code> ma właściwości <strong>FileVersion 0.1</strong>, <strong>ProductVersion 0.1</strong> i opis <strong>AGtest-framework v0.1</strong>. Skrypt wydania generuje raport testu, wersje zależności i SHA-256.</div>
+  <div class="callout warning">Smoke test potwierdza integrację techniczną, ale nie dowodzi matematycznej identyczności każdej implementacji z publikacją źródłową. Do takiego potwierdzenia nadal potrzebne są testy referencyjne i eksperymenty statystyczne.</div>
+
+  <h2>6. Problemy i rekomendacje</h2>
+  <h3><span class="priority">Priorytet 1</span>Zgodność algorytm–problem <span class="status open">CZĘŚCIOWO OTWARTE</span></h3>
+  <p>NSGA-III waliduje obecnie liczbę kierunków względem populacji, co eliminuje część niebezpiecznych konfiguracji. Nadal nie istnieje centralna macierz możliwości dla całego iloczynu Multi. Domyślne punkty R-NSGA-III są 2D, pymoo.MOEAD nie obsługuje każdego problemu z ograniczeniami, a RVEA może wygenerować bardzo dużą liczbę kierunków dla wielu celów.</p>
+  <p>Należy dodać deklaratywną macierz zgodności, walidację przed startem, wspólny limit kierunków i automatyczne dopasowanie parametrów do <code>n_obj</code>.</p>
+  <h3><span class="priority">Priorytet 1</span>Poprawny punkt referencyjny HV <span class="status open">OTWARTE</span></h3>
+  <p>Automatyczny punkt jest zasadniczo wektorem 1.1, z wyjątkiem DTLZ1 3D. Nie jest to uniwersalne dla WFG, Kursawe, Water i innych skal. Punkt HV powinien być metadanym problemu, wspólny dla porównywanych algorytmów i zapisany wraz z wynikiem.</p>
+  <h3><span class="priority">Priorytet 1</span>Powtórzenia i statystyka <span class="status open">OTWARTE</span></h3>
+  <p>Jeden seed nie wystarcza do naukowego porównania metod stochastycznych. Multi powinno przyjmować listę seedów lub liczbę powtórzeń, a raport zbiorczy powinien zawierać średnią, medianę, odchylenie, kwartyle, przedziały ufności, ranking i odpowiednie testy statystyczne.</p>
+  <h3><span class="priority">Priorytet 1</span>Formalizacja metryk <span class="status">CZĘŚCIOWO ZREALIZOWANO</span></h3>
+  <p>Delta ma teraz testy ręcznie obliczalnych przypadków, brakujących ekstremów, nierównomiernego rozstawu, odwróconej kolejności, duplikatów, wartości niefinitych, wykonalności i wielu wymiarów. Pozostałe wskaźniki nadal wymagają jednolitej dokumentacji wzoru, źródła, kierunku optymalizacji oraz zachowania przy pustym froncie.</p>
+
+  <h3><span class="priority p2">Priorytet 2</span>Testy automatyczne <span class="status">ISTOTNIE ROZBUDOWANO</span></h3>
+  <p>Liczba testów wzrosła z 19 do 92. Dodano pokrycie Delty, sterowania krokowego, historii, eksportu PNG, zakresów osi, zamykania workera, wyglądu okna, ścieżek wyników i samodzielnej paczki. Nadal potrzebne są testy matematycznej zgodności wszystkich algorytmów, pełnej macierzy algorytm–problem i dystrybucji wheel/sdist.</p>
+  <h3><span class="priority p2">Priorytet 2</span>Reprodukowalność wyników <span class="status open">OTWARTE</span></h3>
+  <p>Eksport powinien zawierać arkusz Metadata lub manifest: algorytm, problem, wszystkie parametry, seed, limit, punkt HV, czasy, status, błąd, liczbę ewaluacji, wersje środowiska i identyfikator commita. Obecna konfiguracja nadal nie jest w pełni trwale związana z każdym wynikiem.</p>
+  <h3><span class="priority p2">Priorytet 2</span>Podział app.py <span class="status open">OTWARTE</span></h3>
+  <p><code>app.py</code> ma około 2450 wierszy i łączy GUI, formularze, walidację, wątki, historię epok, prezentację, eksport i tłumaczenie tekstów. Naturalny podział to moduły kart GUI, formularze i walidacja, kontroler uruchomienia, konfiguracja eksperymentu, model wyniku i usługa eksportu.</p>
+  <h3><span class="priority p3">Priorytet 3</span>Nazewnictwo i teksty <span class="status open">OTWARTE</span></h3>
+  <p>W GUI i eksporcie współistnieją terminy <em>Generation</em> i <em>Epoch</em>. Warstwa <code>translate_ui_text</code> nadal kompensuje historyczne teksty. Docelowo komunikaty powinny być bezpośrednio zapisane poprawnym angielskim UTF-8, a terminologia ujednolicona.</p>
+  <h3><span class="priority p3">Priorytet 3</span>Wydajność i odporność zapisu <span class="status open">OTWARTE</span></h3>
+  <ul>
+    <li>KKTPM z różnicami skończonymi może wymagać wielu dodatkowych ewaluacji.</li><li>Częsty eksport frontów wielokrotnie przepisuje skoroszyt.</li>
+    <li>Bezpieczniejszy byłby zapis tymczasowy i atomowa zamiana XLSX.</li><li>Ewaluacja wierszowa może być wolniejsza dla tanich funkcji wektorowych NumPy.</li>
+    <li>Zatrzymanie jest kooperacyjne i bardzo długa generacja nie kończy się natychmiast.</li>
+  </ul>
+
+  <h2>7. Zmiany względem poprzedniej analizy</h2>
+  <table>
+    <tr><th>Obszar</th><th>Zmiana</th></tr>
+    <tr><td>Wersja produktu</td><td>Jedno źródło wersji 0.1, tytuł <strong>v0.1</strong> oraz właściwości Windows EXE.</td></tr>
+    <tr><td>Sterowanie</td><td>RAN step, bezpieczne oczekiwanie workera i przegląd historii epok.</td></tr>
+    <tr><td>Wykres</td><td>Siatka i jej interwał, większe elementy, eksport kompletnego PNG i screenshot okna.</td></tr>
+    <tr><td>Delta</td><td>Obsługa wszystkich algorytmów i wielu wymiarów zamiast ograniczenia do NSGA-II 2D.</td></tr>
+    <tr><td>Trajektorie</td><td>Pełne wartości dziesiętne oraz konsekwentne N/A.</td></tr>
+    <tr><td>Testy</td><td>Wzrost z 19 do 92 oraz test samodzielnego EXE.</td></tr>
+    <tr><td>Dokumentacja</td><td>Aktualny zrzut GUI, generowany katalog funkcji i rozszerzony raport.</td></tr>
+  </table>
+
+  <h2>8. Rekomendowane przyszłe funkcje</h2>
+  <ul>
+    <li>wykresy metryk względem Function Evaluations;</li><li>porównanie wielu algorytmów na jednym wykresie;</li>
+    <li>skala logarytmiczna i wybór widocznych metryk;</li><li>eksport wykresów także do SVG i PDF — PNG jest już dostępny;</li>
+    <li>indywidualne parametry algorytmów i problemów w Multi;</li><li>lista seedów, liczba powtórzeń i agregacja statystyczna;</li>
+    <li>wznawianie przerwanych eksperymentów;</li><li>zapis i odczyt konfiguracji eksperymentu;</li>
+    <li>wybór katalogu wynikowego oraz zbiorczy raport CSV/XLSX/PDF;</li><li>kontrolowane równoległe wykonywanie niezależnych uruchomień Multi;</li>
+    <li>parallel coordinates lub scatter-matrix dla więcej niż trzech celów;</li><li>wyszukiwanie list problemów i algorytmów oraz raport kompatybilności przed startem.</li>
+  </ul>
+  <h2>9. Zalecana kolejność rozwoju</h2>
+  <ol>
+    <li><strong>Macierz zgodności i bezpieczne kierunki referencyjne.</strong></li><li><strong>Poprawne, problemowe punkty HV.</strong></li>
+    <li><strong>Wiele seedów, agregacja oraz metadane eksperymentów.</strong></li><li><strong>Testy referencyjne metryk i całej macierzy komponentów.</strong></li>
+    <li><strong>Podział app.py i usunięcie powielonej logiki.</strong></li><li><strong>Ujednolicenie terminologii i tekstów.</strong></li>
+    <li><strong>Nowe wizualizacje i raporty porównawcze.</strong></li>
+  </ol>
+  <div class="callout"><strong>Najważniejsza sekwencja prac:</strong> zgodność kombinacji → poprawny HV → powtórzenia i metadane → testy metryk → refaktoryzacja GUI → nowe wizualizacje.</div>
+  <h2>10. Materiały projektu</h2>
+  <ul>
+    <li><code>README.md</code> — instalacja, architektura, przepływy i rozszerzanie frameworka;</li>
+    <li><code>docs/FUNCTION_CATALOG.md</code> — generowany katalog aktualnych deklaracji;</li>
+    <li><code>build/standalone-self-test.json</code> — raport weryfikacji samodzielnego EXE;</li>
+    <li><code>src/pymoo_gui/algorithms/empty_algorithm_template.py</code> — szablon algorytmu;</li>
+    <li><code>src/pymoo_gui/problems/empty_benchmark_template.py</code> — szablon benchmarku;</li>
+    <li><code>docs/AGtest_framework_analysis_PL.html</code> — edytowalne źródło niniejszego raportu.</li>
+  </ul>
+  <p class="small">Raport powstał na podstawie analizy lokalnego kodu, rejestrów, testów, starej wersji raportu oraz samodzielnego testu dystrybucji Windows. Zachowuje strukturę i charakter wcześniejszego dokumentu, aktualizując go do stanu v0.1 z 22.09.2026.</p>
+</body>
+</html>

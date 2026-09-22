@@ -19,11 +19,12 @@ import sys
 import threading
 import zipfile
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
 
 import numpy as np
-from PyQt5.QtCore import QLocale, Qt, QThread, pyqtSignal
+from PyQt5.QtCore import QLocale, QTimer, Qt, QThread, pyqtSignal
 from PyQt5.QtWidgets import (
     QApplication,
     QAbstractItemView,
@@ -32,6 +33,7 @@ from PyQt5.QtWidgets import (
     QComboBox,
     QDockWidget,
     QDoubleSpinBox,
+    QFileDialog,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
@@ -51,6 +53,7 @@ from PyQt5.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QTextEdit,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -85,11 +88,11 @@ if __package__ in (None, ""):
     __package__ = "pymoo_gui"
 
 from .algorithms import ALGORITHMS, known_pareto_front, make_generation_callback, minimize
+from . import __version__
 from .metrics import (
     METRIC_DISPLAY_ORDER,
     METRIC_LABELS,
     METRIC_TABLE_ORDER,
-    is_delta_supported,
     metrics_export_path,
     next_available_export_path,
     solutions_export_path,
@@ -104,6 +107,8 @@ from .viz.metric_trajectories import MetricTrajectoriesWidget
 from .viz.pareto_dialogs import UnifiedParetoWidget
 
 EMPTY = inspect.Signature.empty
+APPLICATION_NAME = "AGtest-framework"
+APPLICATION_TITLE = f"{APPLICATION_NAME} v{__version__}"
 ND_SAVE_LAST_EPOCH = "last_epoch"
 ND_SAVE_EVERY_N_EPOCHS = "every_n_epochs"
 ND_SAVE_CASCADE = "cascade"
@@ -611,6 +616,7 @@ class OptimizationWorker(QThread):
         parallel_workers: int = 1,
         parallel_backend: str = "process",
         parent=None,
+        step_mode: bool = False,
     ):
         # Store all configuration needed for one optimization run.
         super().__init__(parent)
@@ -627,11 +633,25 @@ class OptimizationWorker(QThread):
         self._parallel_backend = str(parallel_backend)
         self._last_payload: dict = {}
         self._cancel_requested = threading.Event()
+        self.step_mode = bool(step_mode)
+        self._step_condition = threading.Condition()
+        self.waiting_for_step = False
 
     def request_cancel(self) -> None:
         # Request cooperative cancellation of the running optimization.
         self._cancel_requested.set()
         self.requestInterruption()
+        with self._step_condition:
+            self._step_condition.notify_all()
+
+    def request_next_epoch(self) -> bool:
+        # Consume one click only while paused; rapid clicks cannot queue epochs.
+        with self._step_condition:
+            if not self.waiting_for_step or self._cancel_pending():
+                return False
+            self.waiting_for_step = False
+            self._step_condition.notify_all()
+            return True
 
     def _cancel_pending(self) -> bool:
         # Return whether the worker has received a cancellation request.
@@ -642,7 +662,14 @@ class OptimizationWorker(QThread):
         if self._cancel_pending():
             raise OptimizationCancelled()
         self._last_payload = payload or {}
-        self.generation.emit(self._last_payload)
+        with self._step_condition:
+            self.waiting_for_step = self.step_mode and (
+                self._n_gen is None or int(payload.get("n_gen", 0)) < self._n_gen
+            )
+            self.generation.emit(self._last_payload)
+            while self.waiting_for_step and not self._cancel_pending():
+                self._step_condition.wait()
+            self.waiting_for_step = False
         if self._cancel_pending():
             raise OptimizationCancelled()
 
@@ -701,8 +728,8 @@ class MainWindow(QMainWindow):
     def __init__(self):
         # Initialize widgets, runtime state, and initial previews.
         super().__init__()
-        self.setWindowTitle("AGtest-framework")
-        self.resize(1500, 920)
+        self.setWindowTitle(APPLICATION_TITLE)
+        self.resize(1200, 1200)
         self._thread: Optional[OptimizationWorker] = None
         self._multi_thread: Optional[MultiExperimentWorker] = None
         self._multi_result_rows: dict[tuple[str, str], int] = {}
@@ -715,6 +742,7 @@ class MainWindow(QMainWindow):
         self._plot_population_F: Optional[np.ndarray] = None
         self._plot_generation: Optional[int] = None
         self._plot_n_obj: Optional[int] = None
+        self._epoch_history: dict[int, dict] = {}
         self._run_algorithm_key: Optional[str] = None
         self._run_algorithm_name: Optional[str] = None
         self._run_problem_name: Optional[str] = None
@@ -723,6 +751,7 @@ class MainWindow(QMainWindow):
         self._run_metrics_export_path: Optional[Path] = None
         self._run_solutions_export_path: Optional[Path] = None
         self._nd_solution_sheets: dict[int, tuple[list[str], list[list[object]]]] = {}
+        self._square_geometry_applied = False
         self._build_ui()
         self._apply_english_ui_texts()
         self._connect_signals()
@@ -732,12 +761,38 @@ class MainWindow(QMainWindow):
         self._update_hv_ref_point_label()
         self._update_plot_status()
         self._update_run_button_state()
+        self._apply_default_window_geometry()
+
+    def _apply_default_window_geometry(self) -> None:
+        # Size the completed interface as a square and keep the console shallow.
+        minimum = self.minimumSizeHint()
+        side = max(1200, minimum.width(), minimum.height())
+        self.resize(side, side)
+        self.console_dock.setMaximumHeight(160)
+        self.resizeDocks([self.console_dock], [120], Qt.Vertical)
+
+    def showEvent(self, event) -> None:
+        # Apply the square size after Qt has resolved the platform layout constraints.
+        super().showEvent(event)
+        if not self._square_geometry_applied:
+            self._square_geometry_applied = True
+            QTimer.singleShot(0, self._make_window_square)
+
+    def _make_window_square(self) -> None:
+        side = max(self.width(), self.height())
+        self.resize(side, side)
+        self.resizeDocks([self.console_dock], [120], Qt.Vertical)
 
     def _build_ui(self) -> None:
         # Build browser-style tabs containing the existing Main view and the Multi view.
         self.tabs = QTabWidget()
         self.tabs.setDocumentMode(True)
         self.tabs.setMovable(False)
+        self.screenshot_btn = QToolButton()
+        self.screenshot_btn.setText("Screenshot")
+        self.screenshot_btn.setToolTip("Save the entire application window as a PNG image.")
+        self.screenshot_btn.setAccessibleName("Save application screenshot")
+        self.tabs.setCornerWidget(self.screenshot_btn, Qt.TopRightCorner)
         self.setCentralWidget(self.tabs)
 
         main_tab = QWidget()
@@ -911,6 +966,39 @@ class MainWindow(QMainWindow):
         self._plot_placeholder.setAlignment(Qt.AlignCenter)
         self._plot_placeholder.setWordWrap(True)
         self._plot_layout.setContentsMargins(0, 0, 0, 0)
+        epoch_row = QHBoxLayout()
+        self.step_run_btn = QPushButton("RAN step")
+        self.step_run_btn.setToolTip("Start an unlimited run paused after epoch 1; click again for the next epoch.")
+        self.previous_epoch_btn = QPushButton("<")
+        self.previous_epoch_btn.setToolTip("Previous computed epoch")
+        self.next_epoch_btn = QPushButton(">")
+        self.next_epoch_btn.setToolTip("Next computed epoch")
+        self.epoch_spin = QSpinBox()
+        self.epoch_spin.setRange(0, 0)
+        self.epoch_spin.setKeyboardTracking(False)
+        self.epoch_count_lbl = QLabel("/ 0")
+        self.latest_epoch_btn = QPushButton("Latest")
+        for widget in (self.step_run_btn, self.previous_epoch_btn, QLabel("Epoch:"),
+                       self.epoch_spin, self.epoch_count_lbl, self.next_epoch_btn, self.latest_epoch_btn):
+            epoch_row.addWidget(widget)
+        epoch_row.addStretch()
+        self._plot_layout.addLayout(epoch_row)
+        plot_options = QHBoxLayout()
+        self.grid_cb = QCheckBox("Show grid")
+        self.grid_cb.setChecked(True)
+        self.grid_spacing_spin = QDoubleSpinBox()
+        self.grid_spacing_spin.setDecimals(4)
+        self.grid_spacing_spin.setRange(0, 1e9)
+        self.grid_spacing_spin.setSpecialValueText("Auto")
+        self.grid_spacing_spin.setKeyboardTracking(False)
+        self.grid_spacing_spin.setToolTip("Grid and axis tick interval, e.g. 1, 2, 3 or 0.5. Zero restores automatic spacing.")
+        self.export_png_btn = QPushButton("Export PNG")
+        plot_options.addWidget(self.grid_cb)
+        plot_options.addWidget(QLabel("Grid interval:"))
+        plot_options.addWidget(self.grid_spacing_spin)
+        plot_options.addStretch()
+        plot_options.addWidget(self.export_png_btn)
+        self._plot_layout.addLayout(plot_options)
         self._plot_layout.addWidget(self._plot_placeholder, 1)
 
         self._table = QTableWidget()
@@ -1028,7 +1116,7 @@ class MainWindow(QMainWindow):
         self.console_dock.setAllowedAreas(Qt.BottomDockWidgetArea)
         self.console_dock.setWidget(self.text_out)
         self.addDockWidget(Qt.BottomDockWidgetArea, self.console_dock)
-        self.resizeDocks([self.console_dock], [int(self.height() * 0.3)], Qt.Vertical)
+        self.resizeDocks([self.console_dock], [120], Qt.Vertical)
 
     def _connect_signals(self) -> None:
         # Connect Qt widget signals to their event handlers.
@@ -1043,6 +1131,15 @@ class MainWindow(QMainWindow):
         self.auto_scale_axes.toggled.connect(self._on_auto_scale_toggled)
         self.nd_save_mode_combo.currentIndexChanged.connect(self._on_nd_save_mode_changed)
         self.run_btn.clicked.connect(self.start_run)
+        self.step_run_btn.clicked.connect(self._run_next_epoch)
+        self.previous_epoch_btn.clicked.connect(lambda: self._move_epoch(-1))
+        self.next_epoch_btn.clicked.connect(lambda: self._move_epoch(1))
+        self.latest_epoch_btn.clicked.connect(self._show_latest_epoch)
+        self.epoch_spin.valueChanged.connect(self._show_epoch)
+        self.grid_cb.toggled.connect(self._apply_grid_options)
+        self.grid_spacing_spin.valueChanged.connect(self._apply_grid_options)
+        self.export_png_btn.clicked.connect(self._export_plot_png)
+        self.screenshot_btn.clicked.connect(self._export_window_screenshot)
         self.stop_btn.clicked.connect(self.stop_run)
         self.console_btn.clicked.connect(self._toggle_console_dock)
         self.clear_btn.clicked.connect(self._clear_console_and_visuals)
@@ -1124,6 +1221,7 @@ class MainWindow(QMainWindow):
         if running:
             self.multi_start_btn.setEnabled(False)
             self.run_btn.setEnabled(False)
+            self.step_run_btn.setEnabled(False)
         else:
             self._update_multi_selection_state()
             self._update_run_button_state()
@@ -1376,6 +1474,8 @@ class MainWindow(QMainWindow):
             self._plot_widget_dim = n_obj
             self._plot_layout.addWidget(self._plot_widget, 1)
         self._plot_widget.set_auto_scale(self.auto_scale_axes.isChecked())
+        self._plot_widget.set_grid(self.grid_cb.isChecked(), self.grid_spacing_spin.value())
+        self.export_png_btn.setEnabled(True)
         return self._plot_widget
 
     def _reset_plot_axes(self) -> None:
@@ -1387,6 +1487,7 @@ class MainWindow(QMainWindow):
         # Hide the plot widget and show an explanatory placeholder message.
         self._plot_placeholder.setText(translate_ui_text(text))
         self._plot_placeholder.show()
+        self.export_png_btn.setEnabled(False)
         if self._plot_widget is not None:
             self._plot_widget.hide()
 
@@ -1395,6 +1496,98 @@ class MainWindow(QMainWindow):
         self._plot_feasible_nd_F = None
         self._plot_population_F = None
         self._plot_generation = None
+        self._epoch_history.clear()
+        self._update_epoch_controls()
+
+    def _update_epoch_controls(self) -> None:
+        epochs = sorted(self._epoch_history)
+        current = self._plot_generation or 0
+        self.epoch_spin.blockSignals(True)
+        self.epoch_spin.setRange(epochs[0] if epochs else 0, epochs[-1] if epochs else 0)
+        self.epoch_spin.setValue(current)
+        self.epoch_spin.blockSignals(False)
+        self.epoch_spin.setEnabled(bool(epochs))
+        self.epoch_count_lbl.setText(f"/ {epochs[-1] if epochs else 0}")
+        self.previous_epoch_btn.setEnabled(any(epoch < current for epoch in epochs))
+        self.next_epoch_btn.setEnabled(any(epoch > current for epoch in epochs))
+        self.latest_epoch_btn.setEnabled(bool(epochs) and current != epochs[-1])
+
+    def _remember_epoch(self, payload: Mapping[str, Any]) -> None:
+        epoch = payload.get("n_gen")
+        if epoch is None:
+            return
+        # Keep only plot data and summary values, without decision-variable matrices.
+        snapshot = {key: payload.get(key) for key in (*METRIC_DISPLAY_ORDER, "n_gen", "n_eval", "n_nds")}
+        for key in ("population_F", "feasible_nd_F"):
+            data = payload.get(key)
+            snapshot[key] = None if data is None else np.array(data, copy=True)
+        snapshot["known_pf"] = payload.get("known_pf")
+        self._epoch_history[int(epoch)] = snapshot
+
+    def _show_epoch(self, epoch: int) -> None:
+        payload = self._epoch_history.get(epoch)
+        if payload is None:
+            return
+        self._apply_generation_payload(payload)
+        self._update_metrics_label(payload)
+        self._render_plot()
+        self._update_epoch_controls()
+
+    def _move_epoch(self, direction: int) -> None:
+        current = self._plot_generation or 0
+        epochs = sorted(epoch for epoch in self._epoch_history if (epoch - current) * direction > 0)
+        if epochs:
+            self._show_epoch(epochs[0] if direction > 0 else epochs[-1])
+
+    def _show_latest_epoch(self) -> None:
+        if self._epoch_history:
+            self._show_epoch(max(self._epoch_history))
+
+    def _apply_grid_options(self, *_args: Any) -> None:
+        self.grid_spacing_spin.setEnabled(self.grid_cb.isChecked())
+        if self._plot_widget is not None:
+            self._plot_widget.set_grid(self.grid_cb.isChecked(), self.grid_spacing_spin.value())
+
+    def _export_window_screenshot(self) -> None:
+        # Capture the current window before opening the save dialog.
+        screenshot = self.grab()
+        name = f"AGtest_screenshot_{datetime.now():%Y%m%d_%H%M%S}.png"
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Save application screenshot", str(results_root() / name), "PNG image (*.png)",
+        )
+        if not path:
+            return
+        if not path.lower().endswith(".png"):
+            path += ".png"
+        if not screenshot.save(path, "PNG"):
+            self._warn("Screenshot export failed", f"Could not save PNG: {path}")
+            return
+        self._log(f"Saved application screenshot: {path}")
+
+    def _export_plot_png(self) -> None:
+        if self._plot_widget is None or self._plot_widget.isHidden():
+            return
+        name = f"pareto_epoch_{self._plot_generation}.png" if self._plot_generation else "pareto.png"
+        path, _ = QFileDialog.getSaveFileName(self, "Export Pareto plot", str(results_root() / name), "PNG image (*.png)")
+        if not path:
+            return
+        if not path.lower().endswith(".png"):
+            path += ".png"
+        try:
+            self._plot_widget.export_png(path)
+        except Exception as exc:
+            self._warn("PNG export failed", str(exc))
+            return
+        self._log(f"Saved Pareto plot: {path}")
+
+    def _run_next_epoch(self) -> None:
+        if self._thread and self._thread.isRunning():
+            self._show_latest_epoch()
+            if self._thread.request_next_epoch():
+                self.step_run_btn.setEnabled(False)
+                self.status_lbl.setText("Status: computing next epoch")
+            return
+        self.start_run(step_mode=True)
 
     def _reset_run_result_state(self) -> None:
         # Clear metrics history, run plot data, and summary labels.
@@ -1452,6 +1645,10 @@ class MainWindow(QMainWindow):
         self.run_btn.setEnabled(not running and not multi_running and self._validate_hv_manual_ref_point())
         self.stop_btn.setEnabled(running)
         self.clear_btn.setEnabled(not running and not multi_running)
+        self.step_run_btn.setEnabled(not running and not multi_running and self._validate_hv_manual_ref_point())
+        self.step_run_btn.setText("RAN step")
+        for widget in (self.problem_combo, self.problem_form, self.alg_combo, self.alg_form, self.run_form, self.hv_ref_group):
+            widget.setEnabled(not running)
         if running:
             self.multi_start_btn.setEnabled(False)
         else:
@@ -1723,6 +1920,8 @@ class MainWindow(QMainWindow):
             and not (self._multi_thread and self._multi_thread.isRunning())
             and self._validate_hv_manual_ref_point()
         )
+        if not (self._thread and self._thread.isRunning()):
+            self.step_run_btn.setEnabled(self.run_btn.isEnabled())
 
     def _update_plot_status(self, payload: Optional[dict] = None, message: Optional[str] = None) -> None:
         # Refresh the plot or placeholder status after generation updates.
@@ -2027,7 +2226,6 @@ class MainWindow(QMainWindow):
         self.metric_trajectories.reset(
             self._run_algorithm_name,
             self._run_problem_name,
-            delta_supported=is_delta_supported(self._run_algorithm_key, self._current_n_obj()),
         )
         self._run_metrics_export_path = None
         self._run_solutions_export_path = None
@@ -2041,9 +2239,11 @@ class MainWindow(QMainWindow):
         self._thread = None
         self._set_run_state(status_text, running=False)
         if isinstance(last_payload, dict) and last_payload:
+            self._remember_epoch(last_payload)
             self._append_last_payload_once(last_payload)
             self.metric_trajectories.append_payload(last_payload)
             self._apply_generation_payload(last_payload)
+            self._update_epoch_controls()
             self._export_nondominated_solutions_for_final_epoch(last_payload)
             self._update_metrics_label(last_payload)
             self._update_plot_status(last_payload)
@@ -2059,15 +2259,24 @@ class MainWindow(QMainWindow):
             return
         for message in payload.get("diagnostics") or ():
             self._log(f"GEN diag: {message}")
-        self._apply_generation_payload(payload)
+        follow_latest = not self._epoch_history or self._plot_generation == max(self._epoch_history)
+        self._remember_epoch(payload)
+        if follow_latest:
+            self._apply_generation_payload(payload)
+        self._update_epoch_controls()
         self._append_generation_row(payload)
         self.metric_trajectories.append_payload(payload)
         self._export_nondominated_solutions_for_epoch(payload)
-        self._update_metrics_label(payload)
-        if self.live_updates.isChecked():
+        if follow_latest:
+            self._update_metrics_label(payload)
+        stepping = bool(self._thread and self._thread.step_mode)
+        if (self.live_updates.isChecked() or stepping) and follow_latest:
             self._update_plot_status(payload)
+        if stepping and self._thread.waiting_for_step:
+            self.step_run_btn.setEnabled(True)
+            self.status_lbl.setText(f"Status: paused after epoch {payload.get('n_gen')}")
 
-    def start_run(self) -> None:
+    def start_run(self, _checked: bool = False, *, step_mode: bool = False) -> None:
         # Validate all forms, create the worker, and start the run.
         if self._thread and self._thread.isRunning():
             self._log("Start: a run is already in progress.")
@@ -2099,6 +2308,8 @@ class MainWindow(QMainWindow):
         if error:
             self._warn("Invalid input data", error, f"Start: {error}")
             return
+        if step_mode:
+            run_args.update(ran=True, n_gen=None)
         nd_save_args, error = self._collect_nd_save_args()
         if error:
             self._warn("Invalid export settings", error, f"Start: {error}")
@@ -2128,6 +2339,8 @@ class MainWindow(QMainWindow):
             solutions_export_path(project_root, self._run_algorithm_name, self._run_problem_name)
         )
         self._set_run_state("running", running=True)
+        if step_mode:
+            self.step_run_btn.setText("Next epoch")
         termination_desc = "RAN" if run_args["ran"] else f"n_gen={run_args['n_gen']}"
         parallel_desc = (
             f"{run_args['parallel_backend']}:{run_args['parallel_workers']}"
@@ -2157,6 +2370,7 @@ class MainWindow(QMainWindow):
             int(run_args["parallel_workers"]),
             str(run_args["parallel_backend"]),
             parent=self,
+            step_mode=step_mode,
         )
         self._thread.generation.connect(self._on_generation)
         self._thread.done.connect(self._on_run_done)
@@ -2172,6 +2386,7 @@ class MainWindow(QMainWindow):
         self._thread.request_cancel()
         self.status_lbl.setText("Status: stopping")
         self.stop_btn.setEnabled(False)
+        self.step_run_btn.setEnabled(False)
         self._log("Stop: cancellation requested; waiting for the current generation to finish.")
 
     def _on_run_done(self, last_payload: dict) -> None:
@@ -2205,11 +2420,26 @@ class MainWindow(QMainWindow):
         self._set_plot_message("No plot available. Start an optimization run.")
         self.metric_trajectories.reset()
 
+    def closeEvent(self, event) -> None:
+        # Wake paused workers and let their cleanup finish before destroying Qt objects.
+        workers = [worker for worker in self.findChildren(QThread) if worker.isRunning()]
+        if workers:
+            event.ignore()
+            for worker in workers:
+                if not getattr(worker, "_close_on_finish", False):
+                    worker._close_on_finish = True
+                    worker.finished.connect(self.close)
+                worker.request_cancel()
+            return
+        super().closeEvent(event)
+
 
 def main() -> None:
     # Create the Qt application, show the main window, and enter the event loop.
     app = QApplication(sys.argv)
-    app.setApplicationName("AGtest-framework")
+    app.setApplicationName(APPLICATION_NAME)
+    app.setApplicationDisplayName(APPLICATION_TITLE)
+    app.setApplicationVersion(__version__)
     QLocale.setDefault(QLocale(QLocale.English, QLocale.UnitedStates))
     window = MainWindow()
     window.show()

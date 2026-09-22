@@ -3,6 +3,7 @@ from pathlib import Path
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules, copy_metadata
 
 root = Path(SPECPATH)
+version_info = root / "windows-version-info.txt"
 datas = [(str(path), "pymoo_gui/problems") for path in (root / "src/pymoo_gui/problems").glob("*.pf")]
 datas += collect_data_files("pymoo")
 datas += copy_metadata("pymoo") + copy_metadata("platypus-opt")
@@ -35,6 +36,7 @@ exe = EXE(
     a.datas,
     [],
     name="AGtest-framework",
+    version=str(version_info),
     debug=False,
     strip=False,
     upx=False,

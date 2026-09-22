@@ -30,18 +30,14 @@ METRIC_LABELS = {
     "delta": "Delta",
     "kktpm": "KKTPM",
 }
-DELTA_SUPPORTED_ALGORITHM_KEYS = frozenset({"nsga2"})
 
 
 def is_delta_supported(algorithm_key: Optional[str], n_obj: Optional[int] = None) -> bool:
-    # Return whether the current implementation can compute Delta for a run configuration.
-    normalized_key = str(algorithm_key or "").strip().lower()
-    if normalized_key not in DELTA_SUPPORTED_ALGORITHM_KEYS:
-        return False
+    # Delta depends on the objective data, regardless of which algorithm produced it.
     if n_obj is None:
         return True
     try:
-        return int(n_obj) == 2
+        return int(n_obj) >= 2
     except (TypeError, ValueError):
         return False
 
@@ -373,17 +369,37 @@ def compute_spread(F: np.ndarray) -> Optional[float]:
 
 
 def compute_delta(F: np.ndarray, pareto_front: np.ndarray) -> Optional[float]:
-    # Compute the classical NSGA-II Delta diversity metric.
-    A = _as_2d(F, n_obj=2)
-    pf = _as_2d(pareto_front, n_obj=2)
+    # Use classical Delta for two objectives and generalized spread for more objectives.
+    # Both variants use Euclidean distances in the original objective coordinates.
+    A = _as_2d(F)
+    pf = _as_2d(pareto_front)
     if A is None or pf is None:
         return None
     A = _finite_rows(A)
     pf = _finite_rows(pf)
     if A.shape[0] < 2 or pf.shape[0] < 2:
         return None
-    if A.shape[1] != 2 or pf.shape[1] != 2:
+    if A.shape[1] < 2 or pf.shape[1] != A.shape[1]:
         return None
+
+    if A.shape[1] > 2:
+        # Zhou et al. (2006), generalized spread: nearest-neighbor spacing and
+        # distances from the reference front's extreme points to the approximation.
+        # Reference: https://jmetal.sourceforge.net/javadoc/jmetal/qualityIndicator/GeneralizedSpread.html
+        distances = np.linalg.norm(A[:, None, :] - A[None, :, :], axis=2)
+        if not np.any(distances > 0.0):
+            return 1.0
+        distances[distances == 0.0] = np.inf
+        nearest = np.min(distances, axis=1)
+        d_mean = float(np.mean(nearest))
+        # Stable tie-breaking makes the result independent of reference-row order.
+        pf = pf[np.lexsort(tuple(pf[:, i] for i in reversed(range(pf.shape[1]))))]
+        extremes = pf[np.argmax(pf, axis=0)]
+        extreme_distances = np.linalg.norm(extremes[:, None, :] - A[None, :, :], axis=2)
+        d_extremes = float(np.sum(np.min(extreme_distances, axis=1)))
+        numerator = d_extremes + float(np.sum(np.abs(nearest - d_mean)))
+        denominator = d_extremes + float(A.shape[0] * d_mean)
+        return _safe_float(numerator / denominator)
 
     A = A[np.lexsort((A[:, 1], A[:, 0]))]
     pf = pf[np.lexsort((pf[:, 1], pf[:, 0]))]
@@ -539,7 +555,7 @@ def compute_metrics(
     X: Optional[np.ndarray] = None,
     problem: Any = None,
     kktpm_ideal: Optional[np.ndarray] = None,
-    delta_supported: bool = False,
+    delta_supported: bool = True,
 ) -> MetricResult:
     # Compute GD, IGD, GD+, IGD+, Spread, Delta, HV and optionally KKTPM.
     # Args:
@@ -551,7 +567,7 @@ def compute_metrics(
     # X (Optional[np.ndarray]): Decision-variable matrix for KKTPM.
     # problem (Any): Problem instance used for KKTPM.
     # kktpm_ideal (Optional[np.ndarray]): Optional ideal point for KKTPM.
-    # delta_supported (bool): Whether Delta is meaningful for this algorithm/run.
+    # delta_supported (bool): Enable Delta (on by default for every algorithm).
     # Returns:
     # MetricResult: Object containing all computed or unavailable metric values.
     A = _as_2d(F, n_obj=n_obj)
@@ -596,7 +612,6 @@ def compute_metrics(
             pf = None
 
     if bool(delta_supported) and pf is not None and not feasible_empty:
-        # Delta is enabled only for data produced by a supported algorithm.
         result.delta = compute_delta(A, pf)
 
     if pf is not None and pf.shape[1] == A.shape[1] and not feasible_empty:

@@ -12,6 +12,23 @@ from PyQt5.QtWidgets import QGridLayout, QLabel, QScrollArea, QStackedLayout, QV
 from ..metrics import METRIC_LABELS, METRIC_TABLE_ORDER
 
 
+class PlainDecimalAxisItem(pg.AxisItem):
+    # Display metric values directly instead of using an SI multiplier or exponent.
+
+    def tickStrings(self, values, scale, spacing):
+        effective_spacing = abs(float(spacing) * float(scale))
+        if effective_spacing <= 0 or not math.isfinite(effective_spacing):
+            decimals = 6
+        else:
+            decimals = max(0, min(12, int(math.ceil(-math.log10(effective_spacing))) + 1))
+        labels = []
+        for value in values:
+            scaled = float(value) * float(scale)
+            text = f"{scaled:.{decimals}f}".rstrip("0").rstrip(".")
+            labels.append("0" if text in {"", "-0"} else text)
+        return labels
+
+
 class MetricTrajectoriesWidget(QWidget):
     # Display one generation/value line chart for every supported quality metric.
 
@@ -54,7 +71,12 @@ class MetricTrajectoriesWidget(QWidget):
             chart_stack = QStackedLayout(chart_container)
             chart_stack.setStackingMode(QStackedLayout.StackAll)
             chart_stack.setContentsMargins(0, 0, 0, 0)
-            plot = pg.PlotWidget(background="w")
+            axis_items = None
+            if metric_key in {"spread", "delta", "kktpm"}:
+                decimal_axis = PlainDecimalAxisItem(orientation="left")
+                decimal_axis.enableAutoSIPrefix(False)
+                axis_items = {"left": decimal_axis}
+            plot = pg.PlotWidget(background="w", axisItems=axis_items)
             plot.setMinimumHeight(230)
             plot.setTitle(label, color="#202020", size="11pt")
             plot.setLabel("bottom", "Generation")
@@ -93,13 +115,10 @@ class MetricTrajectoriesWidget(QWidget):
         self,
         algorithm_name: Optional[str] = None,
         problem_name: Optional[str] = None,
-        *,
-        delta_supported: bool = True,
     ) -> None:
         # Clear previous values and describe the current Main-run context.
         self._algorithm_name = str(algorithm_name) if algorithm_name else None
         self._problem_name = str(problem_name) if problem_name else None
-        self._set_delta_visibility(bool(delta_supported))
         for metric_key in METRIC_TABLE_ORDER:
             self._values[metric_key].clear()
             self._curves[metric_key].setData([], [])
@@ -113,20 +132,6 @@ class MetricTrajectoriesWidget(QWidget):
             self.context_label.setText(
                 "No Main run is active. Start a single experiment on the Main tab to populate these charts."
             )
-
-    def _set_delta_visibility(self, supported: bool) -> None:
-        # Hide unsupported Delta and compact the remaining charts without leaving an empty grid cell.
-        if supported:
-            self._visible_metrics.add("delta")
-        else:
-            self._visible_metrics.discard("delta")
-
-        visible_keys = [key for key in METRIC_TABLE_ORDER if key in self._visible_metrics]
-        for metric_key, container in self._chart_containers.items():
-            self._grid.removeWidget(container)
-            container.setVisible(metric_key in self._visible_metrics)
-        for index, metric_key in enumerate(visible_keys):
-            self._grid.addWidget(self._chart_containers[metric_key], index // 2, index % 2)
 
     def is_metric_visible(self, metric_key: str) -> bool:
         # Report whether a metric chart is enabled for the current run configuration.

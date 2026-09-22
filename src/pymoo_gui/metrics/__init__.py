@@ -23,7 +23,6 @@ from .export import (
     write_xlsx_workbook,
 )
 from .quality import (
-    DELTA_SUPPORTED_ALGORITHM_KEYS,
     METRIC_DISPLAY_ORDER,
     METRIC_LABELS,
     METRIC_TABLE_ORDER,
@@ -39,7 +38,6 @@ from .quality import (
 
 __all__ = [
     "EXPORT_DIR_NAME",
-    "DELTA_SUPPORTED_ALGORITHM_KEYS",
     "METRIC_DISPLAY_ORDER",
     "METRIC_LABELS",
     "METRIC_TABLE_ORDER",

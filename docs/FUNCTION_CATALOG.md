@@ -1,105 +1,127 @@
-# Katalog wszystkich funkcji frameworka
+# Katalog funkcji AGtest-framework v0.1
 
-Ten dokument jest statycznym katalogiem deklaracji znajdujących się w repozytorium. Obejmuje kod aplikacji, metody klas, funkcje zagnieżdżone, funkcje testowe i anonimowe funkcje `lambda`. Nie obejmuje funkcji importowanych z bibliotek zewnętrznych ani obiektów wywoływalnych utworzonych dynamicznie.
+Dokument jest generowany z aktualnych drzew składniowych AST poleceniem
+`python scripts/generate_function_catalog.py`. Obejmuje kod aplikacji, testy, metody,
+funkcje zagnieżdżone i wyrażenia `lambda`; nie obejmuje symboli importowanych.
 
 ## Wynik analizy
 
-- Kod uruchomieniowy zawiera **540** deklaracji `def` w **47** plikach oraz **77** klas.
-- Testy zawierają **25** funkcji testowych lub pomocniczych.
-- Łącznie znaleziono **565** deklaracji: **224** funkcje modułowe, **328** metod i **13** funkcji zagnieżdżonych.
-- Kod zawiera dodatkowo **26** anonimowych funkcji `lambda`, wyszczególnionych w osobnym rozdziale.
-- W kodzie nie ma deklaracji `async def`. Przetwarzanie w tle realizują `QThread` oraz pule procesów lub wątków.
+- Przeanalizowano **71** plików Python.
+- Kod uruchomieniowy zawiera **580** deklaracji funkcji i metod.
+- Testy zawierają **49** deklaracji funkcji i metod.
+- Łącznie znaleziono **629** deklaracji, **82** klas i **40** wyrażeń `lambda`.
 
-## Architektura i przepływ sterowania
+## Aktualny przepływ sterowania
 
-1. `run_gui.py` przygotowuje ścieżkę importów i wywołuje `pymoo_gui.app.main`.
-2. `MainWindow` buduje interfejs z metadanych `PROBLEMS` i `ALGORITHMS`; formularze parametrów powstają z sygnatur fabryk i jawnych `form_fields`.
-3. `OptimizationWorker` tworzy problem i algorytm, opcjonalnie opakowuje problem w `ParallelProblem`, a następnie uruchamia wspólny dispatcher `algorithms.minimize`.
-4. Algorytmy natywne dla pymoo korzystają z `pymoo.optimize.minimize`; adaptery i algorytmy badawcze udostępniają własne `gui_minimize`.
-5. Callback z `algorithms.common` normalizuje dane generacji, wybiera rozwiązania dopuszczalne i niezdominowane oraz wywołuje obliczanie metryk.
-6. GUI aktualizuje widok Pareto i tabelę historii; warstwa `metrics.export` zapisuje dane do skoroszytów XLSX.
-7. Karta `Multi` buduje iloczyn wybranych problemów i algorytmów, a `MultiExperimentWorker` wykonuje kombinacje kolejno, bez renderowania wykresów, zapisując osobne skoroszyty wynikowe.
-8. Karta `Metric trajectories` odbiera wyłącznie dane bieżącego eksperymentu z `Main` i rysuje osobny przebieg wartości względem generacji dla każdej metryki; brak dostępnej wartości jest oznaczany jako `N/A`.
-
-Największym węzłem zależności jest `app.py` (130 deklaracji), ponieważ łączy budowę GUI, walidację, orkiestrację przebiegu, aktualizację wykresów i eksport. Wspólna baza `ResearchMOOAlgorithm` skupia cykl życia trzech algorytmów badawczych, natomiast `common.py` skupia logikę monitorowania współdzieloną przez pozostałe algorytmy. Implementacje problemów są celowo małe: zwykle składają się z konstruktora oraz `_evaluate`.
-
-## Uwagi utrzymaniowe
-
-- Tylko `metrics/export.py` ma docstringi funkcji; pozostałe role są opisywane komentarzami lub wynikają z nazw. Ten katalog zapewnia pełny indeks, ale nie zastępuje kontraktów wejścia/wyjścia w docstringach.
-- `app.py` ma wiele odpowiedzialności. Naturalne granice przyszłego podziału to: formularze, kontroler uruchomienia, prezentacja metryk oraz eksport.
-- Istnieją równolegle katalogi `algorithms` i historycznie błędnie zapisany `algoritms`; drugi działa wyłącznie jako alias zgodności wstecznej.
-- W kilku komentarzach i tekstach źródłowych widać uszkodzone kodowanie polskich znaków; aplikacja częściowo kompensuje je przez `translate_ui_text`.
-- Fabryki i rejestry są właściwym publicznym punktem rozszerzeń. Metody i funkcje zaczynające się od `_` należy traktować jako szczegóły implementacyjne.
+1. `run_gui.py` uruchamia aplikację lub samodzielny test pakietu EXE.
+2. `MainWindow` buduje trzy zakładki z rejestrów `PROBLEMS` i `ALGORITHMS`.
+3. `OptimizationWorker` prowadzi obliczenia poza wątkiem GUI, również w trybie `RAN step`.
+4. Callback generacyjny oblicza metryki i przekazuje migawki populacji do historii epok.
+5. Widoki Pareto i trajektorii prezentują dane, a warstwa eksportu zapisuje PNG i XLSX.
+6. `MultiExperimentWorker` wykonuje wybrane kombinacje problem–algorytm bez renderowania wykresów.
 
 ## Zestawienie modułów
 
-| Plik | Funkcje modułowe | Metody | Zagnieżdżone | Klasy | Lambda |
-|---|---:|---:|---:|---:|---:|
-| `run_gui.py` | 2 | 0 | 0 | 0 | 0 |
-| `src/pymoo_gui/algorithms/__init__.py` | 1 | 0 | 0 | 0 | 0 |
-| `src/pymoo_gui/algorithms/age.py` | 6 | 8 | 0 | 2 | 0 |
-| `src/pymoo_gui/algorithms/common.py` | 13 | 1 | 0 | 2 | 0 |
-| `src/pymoo_gui/algorithms/empty_algorithm_template.py` | 1 | 6 | 0 | 1 | 0 |
-| `src/pymoo_gui/algorithms/eps_moea.py` | 1 | 0 | 1 | 0 | 0 |
-| `src/pymoo_gui/algorithms/eps_nsga2.py` | 1 | 0 | 1 | 0 | 0 |
-| `src/pymoo_gui/algorithms/gde3.py` | 4 | 5 | 0 | 1 | 0 |
-| `src/pymoo_gui/algorithms/hype.py` | 22 | 4 | 0 | 2 | 0 |
-| `src/pymoo_gui/algorithms/ibea.py` | 5 | 5 | 0 | 1 | 0 |
-| `src/pymoo_gui/algorithms/learning_edmo.py` | 1 | 5 | 0 | 1 | 0 |
-| `src/pymoo_gui/algorithms/lmoea_ds.py` | 6 | 12 | 0 | 1 | 0 |
-| `src/pymoo_gui/algorithms/moead.py` | 4 | 0 | 0 | 0 | 0 |
-| `src/pymoo_gui/algorithms/nsga2.py` | 2 | 0 | 0 | 0 | 0 |
-| `src/pymoo_gui/algorithms/nsga3.py` | 4 | 0 | 0 | 0 | 0 |
-| `src/pymoo_gui/algorithms/platypus_common.py` | 7 | 8 | 0 | 3 | 0 |
-| `src/pymoo_gui/algorithms/platypus_moead.py` | 1 | 0 | 1 | 0 | 0 |
-| `src/pymoo_gui/algorithms/research_common.py` | 24 | 29 | 0 | 3 | 0 |
-| `src/pymoo_gui/algorithms/rnn_guided_dmo.py` | 1 | 6 | 0 | 1 | 0 |
-| `src/pymoo_gui/algorithms/rnsga3.py` | 5 | 0 | 0 | 0 | 0 |
-| `src/pymoo_gui/algorithms/rvea.py` | 7 | 1 | 1 | 1 | 0 |
-| `src/pymoo_gui/algorithms/spea2.py` | 3 | 3 | 0 | 2 | 0 |
-| `src/pymoo_gui/algorithms/ts_nsga.py` | 1 | 2 | 0 | 1 | 0 |
-| `src/pymoo_gui/app.py` | 8 | 123 | 0 | 7 | 2 |
-| `src/pymoo_gui/metrics/export.py` | 13 | 0 | 0 | 0 | 0 |
-| `src/pymoo_gui/metrics/quality.py` | 19 | 0 | 1 | 1 | 0 |
-| `src/pymoo_gui/multi.py` | 6 | 6 | 1 | 3 | 0 |
-| `src/pymoo_gui/parallel.py` | 6 | 6 | 0 | 1 | 0 |
-| `src/pymoo_gui/problems/binh2.py` | 0 | 2 | 0 | 1 | 0 |
-| `src/pymoo_gui/problems/constrex.py` | 0 | 2 | 0 | 1 | 0 |
-| `src/pymoo_gui/problems/empty_benchmark_template.py` | 2 | 2 | 0 | 1 | 0 |
-| `src/pymoo_gui/problems/fonseca.py` | 0 | 2 | 0 | 1 | 0 |
-| `src/pymoo_gui/problems/golinski.py` | 0 | 2 | 0 | 1 | 0 |
-| `src/pymoo_gui/problems/kursawe.py` | 0 | 2 | 0 | 1 | 0 |
-| `src/pymoo_gui/problems/lz09.py` | 0 | 16 | 0 | 10 | 0 |
-| `src/pymoo_gui/problems/osyczka2.py` | 0 | 2 | 0 | 1 | 0 |
-| `src/pymoo_gui/problems/registry.py` | 18 | 0 | 0 | 0 | 24 |
-| `src/pymoo_gui/problems/schaffer.py` | 0 | 2 | 0 | 1 | 0 |
-| `src/pymoo_gui/problems/srinivas.py` | 0 | 2 | 0 | 1 | 0 |
-| `src/pymoo_gui/problems/tanaka.py` | 0 | 2 | 0 | 1 | 0 |
-| `src/pymoo_gui/problems/uf.py` | 2 | 13 | 0 | 11 | 0 |
-| `src/pymoo_gui/problems/viennet2.py` | 0 | 2 | 0 | 1 | 0 |
-| `src/pymoo_gui/problems/viennet3.py` | 0 | 2 | 0 | 1 | 0 |
-| `src/pymoo_gui/problems/water.py` | 0 | 2 | 0 | 1 | 0 |
-| `src/pymoo_gui/problems/wfg.py` | 2 | 0 | 0 | 0 | 0 |
-| `src/pymoo_gui/viz/metric_trajectories.py` | 0 | 4 | 0 | 1 | 0 |
-| `src/pymoo_gui/viz/pareto_dialogs.py` | 1 | 39 | 7 | 8 | 0 |
-| `tests/test_custom_algorithm_runtime.py` | 2 | 0 | 0 | 0 | 0 |
-| `tests/test_dtlz_pareto_fronts.py` | 4 | 0 | 0 | 0 | 0 |
-| `tests/test_empty_benchmark_template.py` | 3 | 0 | 0 | 0 | 0 |
-| `tests/test_lmoea_ds_runtime.py` | 1 | 0 | 0 | 0 | 0 |
-| `tests/test_metric_trajectories.py` | 3 | 0 | 0 | 0 | 0 |
-| `tests/test_multi.py` | 7 | 0 | 0 | 0 | 0 |
-| `tests/test_package_exports.py` | 2 | 0 | 0 | 0 | 0 |
-| `tests/test_pareto_labels.py` | 1 | 0 | 0 | 0 | 0 |
-| `tests/test_registry_integrity.py` | 2 | 0 | 0 | 0 | 0 |
+| Plik | Deklaracje | Klasy | Lambda |
+|---|---:|---:|---:|
+| `run_gui.py` | 2 | 0 | 0 |
+| `scripts/check_built_exe.py` | 1 | 0 | 0 |
+| `scripts/generate_function_catalog.py` | 9 | 2 | 0 |
+| `src/pymoo_gui/__init__.py` | 0 | 0 | 0 |
+| `src/pymoo_gui/algorithms/__init__.py` | 1 | 0 | 0 |
+| `src/pymoo_gui/algorithms/age.py` | 14 | 2 | 0 |
+| `src/pymoo_gui/algorithms/common.py` | 14 | 2 | 0 |
+| `src/pymoo_gui/algorithms/empty_algorithm_template.py` | 7 | 1 | 0 |
+| `src/pymoo_gui/algorithms/eps_moea.py` | 2 | 0 | 0 |
+| `src/pymoo_gui/algorithms/eps_nsga2.py` | 2 | 0 | 0 |
+| `src/pymoo_gui/algorithms/gde3.py` | 9 | 1 | 0 |
+| `src/pymoo_gui/algorithms/hype.py` | 26 | 2 | 0 |
+| `src/pymoo_gui/algorithms/ibea.py` | 10 | 1 | 0 |
+| `src/pymoo_gui/algorithms/learning_edmo.py` | 6 | 1 | 0 |
+| `src/pymoo_gui/algorithms/lmoea_ds.py` | 18 | 1 | 0 |
+| `src/pymoo_gui/algorithms/moead.py` | 4 | 0 | 0 |
+| `src/pymoo_gui/algorithms/nsga2.py` | 2 | 0 | 0 |
+| `src/pymoo_gui/algorithms/nsga3.py` | 4 | 0 | 0 |
+| `src/pymoo_gui/algorithms/platypus_common.py` | 15 | 3 | 0 |
+| `src/pymoo_gui/algorithms/platypus_moead.py` | 2 | 0 | 0 |
+| `src/pymoo_gui/algorithms/research_common.py` | 53 | 3 | 0 |
+| `src/pymoo_gui/algorithms/rnn_guided_dmo.py` | 7 | 1 | 0 |
+| `src/pymoo_gui/algorithms/rnsga3.py` | 5 | 0 | 0 |
+| `src/pymoo_gui/algorithms/rvea.py` | 9 | 1 | 0 |
+| `src/pymoo_gui/algorithms/spea2.py` | 6 | 2 | 0 |
+| `src/pymoo_gui/algorithms/ts_nsga.py` | 3 | 1 | 0 |
+| `src/pymoo_gui/algoritms/__init__.py` | 0 | 0 | 0 |
+| `src/pymoo_gui/app.py` | 145 | 7 | 4 |
+| `src/pymoo_gui/metrics/__init__.py` | 0 | 0 | 0 |
+| `src/pymoo_gui/metrics/export.py` | 13 | 0 | 0 |
+| `src/pymoo_gui/metrics/quality.py` | 22 | 1 | 0 |
+| `src/pymoo_gui/multi.py` | 13 | 3 | 0 |
+| `src/pymoo_gui/packaging_smoke.py` | 2 | 0 | 0 |
+| `src/pymoo_gui/parallel.py` | 12 | 1 | 0 |
+| `src/pymoo_gui/problems/__init__.py` | 0 | 0 | 0 |
+| `src/pymoo_gui/problems/binh2.py` | 2 | 1 | 0 |
+| `src/pymoo_gui/problems/constrex.py` | 2 | 1 | 0 |
+| `src/pymoo_gui/problems/empty_benchmark_template.py` | 4 | 1 | 0 |
+| `src/pymoo_gui/problems/fonseca.py` | 2 | 1 | 0 |
+| `src/pymoo_gui/problems/golinski.py` | 2 | 1 | 0 |
+| `src/pymoo_gui/problems/kursawe.py` | 2 | 1 | 0 |
+| `src/pymoo_gui/problems/lz09.py` | 16 | 10 | 0 |
+| `src/pymoo_gui/problems/osyczka2.py` | 2 | 1 | 0 |
+| `src/pymoo_gui/problems/registry.py` | 18 | 0 | 24 |
+| `src/pymoo_gui/problems/schaffer.py` | 2 | 1 | 0 |
+| `src/pymoo_gui/problems/srinivas.py` | 2 | 1 | 0 |
+| `src/pymoo_gui/problems/tanaka.py` | 2 | 1 | 0 |
+| `src/pymoo_gui/problems/uf.py` | 15 | 11 | 0 |
+| `src/pymoo_gui/problems/viennet2.py` | 2 | 1 | 0 |
+| `src/pymoo_gui/problems/viennet3.py` | 2 | 1 | 0 |
+| `src/pymoo_gui/problems/water.py` | 2 | 1 | 0 |
+| `src/pymoo_gui/problems/wfg.py` | 2 | 0 | 0 |
+| `src/pymoo_gui/runtime.py` | 1 | 0 | 0 |
+| `src/pymoo_gui/viz/__init__.py` | 0 | 0 | 0 |
+| `src/pymoo_gui/viz/metric_trajectories.py` | 6 | 2 | 0 |
+| `src/pymoo_gui/viz/pareto_dialogs.py` | 56 | 10 | 0 |
+| `tests/conftest.py` | 0 | 0 | 0 |
+| `tests/test_custom_algorithm_runtime.py` | 2 | 0 | 0 |
+| `tests/test_delta.py` | 5 | 0 | 0 |
+| `tests/test_dtlz_pareto_fronts.py` | 4 | 0 | 0 |
+| `tests/test_empty_benchmark_template.py` | 3 | 0 | 0 |
+| `tests/test_kktpm.py` | 4 | 0 | 0 |
+| `tests/test_lmoea_ds_runtime.py` | 1 | 0 | 0 |
+| `tests/test_metric_trajectories.py` | 5 | 0 | 0 |
+| `tests/test_multi.py` | 7 | 0 | 0 |
+| `tests/test_package_exports.py` | 2 | 0 | 0 |
+| `tests/test_pareto_labels.py` | 1 | 0 | 0 |
+| `tests/test_plot_controls.py` | 10 | 0 | 12 |
+| `tests/test_registry_integrity.py` | 2 | 0 | 0 |
+| `tests/test_runtime_paths.py` | 2 | 0 | 0 |
+| `tests/test_version.py` | 1 | 0 | 0 |
 
-## Katalog kodu uruchomieniowego
-
-Sygnatury są zapisane dokładnie na podstawie drzewa składniowego Pythona. Nazwa kwalifikowana pokazuje klasę lub funkcję nadrzędną. Dekoratory są podane w nawiasach kwadratowych.
+## Pełny indeks deklaracji
 
 ### `run_gui.py`
 
-- `_ensure_src_on_path() -> None` — funkcja modułowa; [wiersz 17](../run_gui.py#L17).
-- `main() -> None` — funkcja modułowa; [wiersz 27](../run_gui.py#L27).
+- `_ensure_src_on_path() -> None` — funkcja modułowa; [wiersz 18](../run_gui.py#L18).
+- `main() -> None` — funkcja modułowa; [wiersz 28](../run_gui.py#L28).
+
+### `scripts/check_built_exe.py`
+
+- `main() -> None` — funkcja modułowa; [wiersz 11](../scripts/check_built_exe.py#L11).
+
+### `scripts/generate_function_catalog.py`
+
+- `CatalogVisitor.__init__(self) -> None` — metoda; [wiersz 24](../scripts/generate_function_catalog.py#L24).
+- `CatalogVisitor.visit_ClassDef(self, node: ast.ClassDef) -> None` — metoda; [wiersz 30](../scripts/generate_function_catalog.py#L30).
+- `CatalogVisitor.visit_FunctionDef(self, node: ast.FunctionDef) -> None` — metoda; [wiersz 36](../scripts/generate_function_catalog.py#L36).
+- `CatalogVisitor.visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None` — metoda; [wiersz 39](../scripts/generate_function_catalog.py#L39).
+- `CatalogVisitor._record_function(self, node: ast.FunctionDef | ast.AsyncFunctionDef, *, async_function: bool) -> None` — metoda; [wiersz 42](../scripts/generate_function_catalog.py#L42).
+- `CatalogVisitor.visit_Lambda(self, node: ast.Lambda) -> None` — metoda; [wiersz 58](../scripts/generate_function_catalog.py#L58).
+- `python_files() -> list[Path]` — funkcja modułowa; [wiersz 63](../scripts/generate_function_catalog.py#L63).
+- `analyze(path: Path) -> CatalogVisitor` — funkcja modułowa; [wiersz 70](../scripts/generate_function_catalog.py#L70).
+- `main() -> None` — funkcja modułowa; [wiersz 76](../scripts/generate_function_catalog.py#L76).
+
+### `src/pymoo_gui/__init__.py`
+
+Brak deklaracji funkcji i wyrażeń `lambda`.
 
 ### `src/pymoo_gui/algorithms/__init__.py`
 
@@ -115,9 +137,9 @@ Sygnatury są zapisane dokładnie na podstawie drzewa składniowego Pythona. Naz
 - `AGEMOEASurvival.__init__(self) -> None` — metoda; [wiersz 107](../src/pymoo_gui/algorithms/age.py#L107).
 - `AGEMOEASurvival._do(self, problem, pop, *args, n_survive=None, **kwargs)` — metoda; [wiersz 112](../src/pymoo_gui/algorithms/age.py#L112).
 - `AGEMOEASurvival.survival_score(self, front: np.ndarray, ideal_point: np.ndarray) -> tuple[np.ndarray, float, np.ndarray]` — metoda; [wiersz 145](../src/pymoo_gui/algorithms/age.py#L145).
-- `AGEMOEASurvival.compute_geometry(front: np.ndarray, extreme: np.ndarray, n_obj: int) -> float` — metoda; dekoratory: `staticmethod`; [wiersz 193](../src/pymoo_gui/algorithms/age.py#L193).
-- `AGEMOEASurvival.pairwise_distances(front: np.ndarray, p: float) -> np.ndarray` — metoda; dekoratory: `staticmethod`; [wiersz 210](../src/pymoo_gui/algorithms/age.py#L210).
-- `AGEMOEASurvival.minkowski_distances(A: np.ndarray, B: np.ndarray, p: float) -> np.ndarray` — metoda; dekoratory: `staticmethod`; [wiersz 219](../src/pymoo_gui/algorithms/age.py#L219).
+- `AGEMOEASurvival.compute_geometry(front: np.ndarray, extreme: np.ndarray, n_obj: int) -> float` — metoda; [wiersz 193](../src/pymoo_gui/algorithms/age.py#L193).
+- `AGEMOEASurvival.pairwise_distances(front: np.ndarray, p: float) -> np.ndarray` — metoda; [wiersz 210](../src/pymoo_gui/algorithms/age.py#L210).
+- `AGEMOEASurvival.minkowski_distances(A: np.ndarray, B: np.ndarray, p: float) -> np.ndarray` — metoda; [wiersz 219](../src/pymoo_gui/algorithms/age.py#L219).
 - `AGE.__init__(self, pop_size: int=100, sampling=FloatRandomSampling(), selection=TournamentSelection(func_comp=binary_tournament), crossover=SBX(eta=15, prob=0.9), mutation=PM(eta=20), eliminate_duplicates: bool=True, n_offsprings: Optional[int]=None, output=MultiObjectiveOutput(), **kwargs)` — metoda; [wiersz 233](../src/pymoo_gui/algorithms/age.py#L233).
 - `AGE._set_optimum(self, **kwargs)` — metoda; [wiersz 262](../src/pymoo_gui/algorithms/age.py#L262).
 - `make_age(pop_size: int=100, n_offsprings: Optional[int]=None) -> AGE` — funkcja modułowa; [wiersz 270](../src/pymoo_gui/algorithms/age.py#L270).
@@ -141,13 +163,13 @@ Sygnatury są zapisane dokładnie na podstawie drzewa składniowego Pythona. Naz
 
 ### `src/pymoo_gui/algorithms/empty_algorithm_template.py`
 
-- `EmptyAlgorithmTemplate.__init__(self, population_size: int=100, archive_size: int=100, crossover_rate: float=0.9, mutation_rate: float=0.1, template_bias: float=0.5, seed: int=1) -> None` — metoda; [wiersz 28](../src/pymoo_gui/algorithms/empty_algorithm_template.py#L28).
-- `EmptyAlgorithmTemplate.after_initialize(self) -> None` — metoda; [wiersz 54](../src/pymoo_gui/algorithms/empty_algorithm_template.py#L54).
-- `EmptyAlgorithmTemplate.guided_candidates(self) -> np.ndarray` — metoda; [wiersz 59](../src/pymoo_gui/algorithms/empty_algorithm_template.py#L59).
-- `EmptyAlgorithmTemplate.create_offspring(self) -> np.ndarray` — metoda; [wiersz 66](../src/pymoo_gui/algorithms/empty_algorithm_template.py#L66).
-- `EmptyAlgorithmTemplate.environmental_selection(self, X: np.ndarray, F: np.ndarray, CV: np.ndarray, n_survive: int) -> PopulationState` — metoda; [wiersz 78](../src/pymoo_gui/algorithms/empty_algorithm_template.py#L78).
-- `EmptyAlgorithmTemplate.after_generation(self, previous: PopulationState, current: PopulationState) -> None` — metoda; [wiersz 98](../src/pymoo_gui/algorithms/empty_algorithm_template.py#L98).
-- `make_empty_algorithm_template(population_size: int=100, archive_size: int=100, crossover_rate: float=0.9, mutation_rate: float=0.1, template_bias: float=0.5, seed: int=1) -> EmptyAlgorithmTemplate` — funkcja modułowa; [wiersz 108](../src/pymoo_gui/algorithms/empty_algorithm_template.py#L108).
+- `EmptyAlgorithmTemplate.__init__(self, population_size: int=100, archive_size: int=100, crossover_rate: float=0.9, mutation_rate: float=0.1, template_bias: float=0.5, seed: int=1) -> None` — metoda; [wiersz 26](../src/pymoo_gui/algorithms/empty_algorithm_template.py#L26).
+- `EmptyAlgorithmTemplate.after_initialize(self) -> None` — metoda; [wiersz 52](../src/pymoo_gui/algorithms/empty_algorithm_template.py#L52).
+- `EmptyAlgorithmTemplate.guided_candidates(self) -> np.ndarray` — metoda; [wiersz 57](../src/pymoo_gui/algorithms/empty_algorithm_template.py#L57).
+- `EmptyAlgorithmTemplate.create_offspring(self) -> np.ndarray` — metoda; [wiersz 64](../src/pymoo_gui/algorithms/empty_algorithm_template.py#L64).
+- `EmptyAlgorithmTemplate.environmental_selection(self, X: np.ndarray, F: np.ndarray, CV: np.ndarray, n_survive: int) -> PopulationState` — metoda; [wiersz 76](../src/pymoo_gui/algorithms/empty_algorithm_template.py#L76).
+- `EmptyAlgorithmTemplate.after_generation(self, previous: PopulationState, current: PopulationState) -> None` — metoda; [wiersz 96](../src/pymoo_gui/algorithms/empty_algorithm_template.py#L96).
+- `make_empty_algorithm_template(population_size: int=100, archive_size: int=100, crossover_rate: float=0.9, mutation_rate: float=0.1, template_bias: float=0.5, seed: int=1) -> EmptyAlgorithmTemplate` — funkcja modułowa; [wiersz 106](../src/pymoo_gui/algorithms/empty_algorithm_template.py#L106).
 
 ### `src/pymoo_gui/algorithms/eps_moea.py`
 
@@ -311,7 +333,7 @@ Sygnatury są zapisane dokładnie na podstawie drzewa składniowego Pythona. Naz
 - `associate_to_reference_directions(F: np.ndarray, ref_dirs: np.ndarray) -> tuple[np.ndarray, np.ndarray]` — funkcja modułowa; [wiersz 430](../src/pymoo_gui/algorithms/research_common.py#L430).
 - `tchebycheff_scores(F: np.ndarray, ref_dirs: np.ndarray) -> np.ndarray` — funkcja modułowa; [wiersz 446](../src/pymoo_gui/algorithms/research_common.py#L446).
 - `shifted_density(F: np.ndarray) -> np.ndarray` — funkcja modułowa; [wiersz 455](../src/pymoo_gui/algorithms/research_common.py#L455).
-- `PopulationState.feasible(self) -> np.ndarray` — metoda; dekoratory: `property`; [wiersz 481](../src/pymoo_gui/algorithms/research_common.py#L481).
+- `PopulationState.feasible(self) -> np.ndarray` — metoda; [wiersz 481](../src/pymoo_gui/algorithms/research_common.py#L481).
 - `ArrayPopulationView.__init__(self, state: Optional[PopulationState])` — metoda; [wiersz 490](../src/pymoo_gui/algorithms/research_common.py#L490).
 - `ArrayPopulationView.get(self, name: str) -> Optional[np.ndarray]` — metoda; [wiersz 494](../src/pymoo_gui/algorithms/research_common.py#L494).
 - `ResearchMOOAlgorithm.__init__(self, population_size: int=100, archive_size: int=100, crossover_rate: float=0.9, mutation_rate: float=0.1, crossover_eta: float=15.0, mutation_eta: float=20.0, epsilon: float=0.05, n_neighbors: int=15, n_partitions: int=12, reference_directions: Any=None, seed: int=1) -> None` — metoda; [wiersz 513](../src/pymoo_gui/algorithms/research_common.py#L513).
@@ -386,139 +408,165 @@ Sygnatury są zapisane dokładnie na podstawie drzewa składniowego Pythona. Naz
 - `TSNSGA.guided_candidates(self) -> np.ndarray` — metoda; [wiersz 48](../src/pymoo_gui/algorithms/ts_nsga.py#L48).
 - `make_ts_nsga(population_size: int=100, archive_size: int=100, crossover_rate: float=0.9, mutation_rate: float=0.1, stage_fraction: float=0.3, local_search_scale: float=0.15, seed: int=1) -> TSNSGA` — funkcja modułowa; [wiersz 62](../src/pymoo_gui/algorithms/ts_nsga.py#L62).
 
+### `src/pymoo_gui/algoritms/__init__.py`
+
+Brak deklaracji funkcji i wyrażeń `lambda`.
+
 ### `src/pymoo_gui/app.py`
 
-- `NoTermination.__init__(self)` — metoda; [wiersz 63](../src/pymoo_gui/app.py#L63).
-- `NoTermination.update(self, algorithm)` — metoda; [wiersz 68](../src/pymoo_gui/app.py#L68).
-- `NoTermination.has_terminated(self)` — metoda; [wiersz 73](../src/pymoo_gui/app.py#L73).
-- `NoTermination.do_continue(self)` — metoda; [wiersz 77](../src/pymoo_gui/app.py#L77).
-- `translate_ui_text(text: Any) -> str` — funkcja modułowa; [wiersz 257](../src/pymoo_gui/app.py#L257).
-- `pl_param_label(name: str) -> str` — funkcja modułowa; [wiersz 315](../src/pymoo_gui/app.py#L315).
-- `callable_signature(obj: Any) -> inspect.Signature` — funkcja modułowa; [wiersz 320](../src/pymoo_gui/app.py#L320).
-- `filter_callable_kwargs(fn: Any, params: Mapping[str, Any]) -> Dict[str, Any]` — funkcja modułowa; [wiersz 325](../src/pymoo_gui/app.py#L325).
-- `_literal_or_str(value: str) -> Any` — funkcja modułowa; [wiersz 337](../src/pymoo_gui/app.py#L337).
-- `should_save_nondominated_solutions_for_epoch(epoch: Any, mode: str, step: int=1, *, is_final: bool=False) -> bool` — funkcja modułowa; [wiersz 348](../src/pymoo_gui/app.py#L348).
-- `_specs(raw_specs: Optional[Any]) -> list[FieldSpec]` — funkcja modułowa; [wiersz 394](../src/pymoo_gui/app.py#L394).
-- `ParamForm.__init__(self, title: str, parent=None)` — metoda; [wiersz 430](../src/pymoo_gui/app.py#L430).
-- `ParamForm.clear(self) -> None` — metoda; [wiersz 439](../src/pymoo_gui/app.py#L439).
-- `ParamForm.binding(self, name: str) -> Optional[WidgetBinding]` — metoda; [wiersz 445](../src/pymoo_gui/app.py#L445).
-- `ParamForm.bindings(self) -> Sequence[WidgetBinding]` — metoda; [wiersz 449](../src/pymoo_gui/app.py#L449).
-- `ParamForm.build_for_callable(self, fn: Any, extra_fields: Optional[Any]=None) -> None` — metoda; [wiersz 453](../src/pymoo_gui/app.py#L453).
-- `ParamForm.build_for_signature(self, sig: inspect.Signature, extra_fields: Optional[Any]=None) -> None` — metoda; [wiersz 457](../src/pymoo_gui/app.py#L457).
-- `ParamForm.build_from_specs(self, raw_specs: Optional[Any]) -> None` — metoda; [wiersz 472](../src/pymoo_gui/app.py#L472).
-- `ParamForm._kind(self, annotation: Any, default: Any) -> str` — metoda; [wiersz 478](../src/pymoo_gui/app.py#L478).
-- `ParamForm._bounds(self, spec: FieldSpec) -> Tuple[float, float]` — metoda; [wiersz 490](../src/pymoo_gui/app.py#L490).
-- `ParamForm._apply_read_only(self, widget: Any, spec: FieldSpec) -> None` — metoda; [wiersz 509](../src/pymoo_gui/app.py#L509).
-- `ParamForm._add_field(self, spec: FieldSpec) -> None` — metoda; [wiersz 522](../src/pymoo_gui/app.py#L522).
-- `ParamForm.values(self) -> Dict[str, Any]` — metoda; [wiersz 564](../src/pymoo_gui/app.py#L564).
-- `OptimizationWorker.__init__(self, problem_key: str, alg_key: str, problem_params: Mapping[str, Any], algorithm_params: Mapping[str, Any], n_gen: Optional[int], seed: int, verbose: bool, hv_ref_point: Optional[list[float]], parallel_eval: bool=False, parallel_workers: int=1, parallel_backend: str='process', parent=None)` — metoda; [wiersz 598](../src/pymoo_gui/app.py#L598).
-- `OptimizationWorker.request_cancel(self) -> None` — metoda; [wiersz 629](../src/pymoo_gui/app.py#L629).
-- `OptimizationWorker._cancel_pending(self) -> bool` — metoda; [wiersz 634](../src/pymoo_gui/app.py#L634).
-- `OptimizationWorker._emit_generation(self, payload: dict) -> None` — metoda; [wiersz 638](../src/pymoo_gui/app.py#L638).
-- `OptimizationWorker.run(self) -> None` — metoda; [wiersz 647](../src/pymoo_gui/app.py#L647).
-- `MainWindow.__init__(self)` — metoda; [wiersz 699](../src/pymoo_gui/app.py#L699).
-- `MainWindow._build_ui(self) -> None` — metoda; [wiersz 733](../src/pymoo_gui/app.py#L733).
-- `MainWindow._build_checkable_registry_list(self, registry: Mapping[str, Dict[str, Any]]) -> QListWidget` — metoda; [wiersz 759](../src/pymoo_gui/app.py#L759).
-- `MainWindow._build_multi_selection_group(self, title: str, widget: QListWidget) -> QGroupBox` — metoda; [wiersz 771](../src/pymoo_gui/app.py#L771).
-- `MainWindow._build_multi_panel(self) -> QWidget` — metoda; [wiersz 786](../src/pymoo_gui/app.py#L786).
-- `MainWindow._apply_english_ui_texts(self) -> None` — metoda; [wiersz 871](../src/pymoo_gui/app.py#L871).
-- `MainWindow._build_controls_panel(self) -> QWidget` — metoda; [wiersz 891](../src/pymoo_gui/app.py#L891).
-- `MainWindow._build_results_panel(self) -> QWidget` — metoda; [wiersz 903](../src/pymoo_gui/app.py#L903).
-- `MainWindow._build_problem_controls(self) -> None` — metoda; [wiersz 933](../src/pymoo_gui/app.py#L933).
-- `MainWindow._build_hv_controls(self) -> None` — metoda; [wiersz 952](../src/pymoo_gui/app.py#L952).
-- `MainWindow._build_run_controls(self) -> None` — metoda; [wiersz 971](../src/pymoo_gui/app.py#L971).
-- `MainWindow._build_console(self) -> None` — metoda; [wiersz 1018](../src/pymoo_gui/app.py#L1018).
-- `MainWindow._connect_signals(self) -> None` — metoda; [wiersz 1028](../src/pymoo_gui/app.py#L1028).
-- `MainWindow._configure_placeholders(self) -> None` — metoda; [wiersz 1057](../src/pymoo_gui/app.py#L1057).
-- `MainWindow._set_all_multi_items(self, widget: QListWidget, checked: bool) -> None` — metoda; [wiersz 1072](../src/pymoo_gui/app.py#L1072).
-- `MainWindow._checked_multi_keys(self, widget: QListWidget) -> list[str]` — metoda; [wiersz 1085](../src/pymoo_gui/app.py#L1085).
-- `MainWindow._update_multi_selection_state(self, *_args: Any) -> None` — metoda; [wiersz 1096](../src/pymoo_gui/app.py#L1096).
-- `MainWindow._set_multi_running_state(self, running: bool) -> None` — metoda; [wiersz 1109](../src/pymoo_gui/app.py#L1109).
-- `MainWindow._multi_row_key(self, payload: Mapping[str, Any]) -> tuple[str, str]` — metoda; [wiersz 1123](../src/pymoo_gui/app.py#L1123).
-- `MainWindow._set_multi_table_value(self, row: int, column: int, value: Any) -> None` — metoda; [wiersz 1127](../src/pymoo_gui/app.py#L1127).
-- `MainWindow._on_multi_run_started(self, payload: Mapping[str, Any]) -> None` — metoda; [wiersz 1134](../src/pymoo_gui/app.py#L1134).
-- `MainWindow._on_multi_run_progress(self, payload: Mapping[str, Any]) -> None` — metoda; [wiersz 1158](../src/pymoo_gui/app.py#L1158).
-- `MainWindow._on_multi_run_finished(self, payload: Mapping[str, Any]) -> None` — metoda; [wiersz 1177](../src/pymoo_gui/app.py#L1177).
-- `MainWindow.start_multi_experiment(self) -> None` — metoda; [wiersz 1203](../src/pymoo_gui/app.py#L1203).
-- `MainWindow.stop_multi_experiment(self) -> None` — metoda; [wiersz 1254](../src/pymoo_gui/app.py#L1254).
-- `MainWindow._finish_multi_experiment(self, status: str, results: Sequence[Mapping[str, Any]]) -> None` — metoda; [wiersz 1264](../src/pymoo_gui/app.py#L1264).
-- `MainWindow._on_multi_experiment_done(self, results: Sequence[Mapping[str, Any]]) -> None` — metoda; [wiersz 1280](../src/pymoo_gui/app.py#L1280).
-- `MainWindow._on_multi_experiment_cancelled(self, results: Sequence[Mapping[str, Any]]) -> None` — metoda; [wiersz 1284](../src/pymoo_gui/app.py#L1284).
-- `MainWindow._on_multi_experiment_failed(self, error: str) -> None` — metoda; [wiersz 1288](../src/pymoo_gui/app.py#L1288).
-- `MainWindow._entry(self, combo: QComboBox, registry: Mapping[str, Dict[str, Any]]) -> Dict[str, Any]` — metoda; [wiersz 1296](../src/pymoo_gui/app.py#L1296).
-- `MainWindow._known_pf_for_problem(self, entry: Mapping[str, Any], problem: Any) -> Optional[np.ndarray]` — metoda; [wiersz 1301](../src/pymoo_gui/app.py#L1301).
-- `MainWindow._instantiate_selected_problem(self, params: Optional[Mapping[str, Any]]=None) -> Tuple[Optional[Any], Optional[str]]` — metoda; [wiersz 1322](../src/pymoo_gui/app.py#L1322).
-- `MainWindow._connect_problem_form_signals(self) -> None` — metoda; [wiersz 1337](../src/pymoo_gui/app.py#L1337).
-- `MainWindow._ensure_plot_widget(self) -> UnifiedParetoWidget` — metoda; [wiersz 1350](../src/pymoo_gui/app.py#L1350).
-- `MainWindow._reset_plot_axes(self) -> None` — metoda; [wiersz 1373](../src/pymoo_gui/app.py#L1373).
-- `MainWindow._set_plot_message(self, text: str) -> None` — metoda; [wiersz 1378](../src/pymoo_gui/app.py#L1378).
-- `MainWindow._reset_plot_run_data(self) -> None` — metoda; [wiersz 1385](../src/pymoo_gui/app.py#L1385).
-- `MainWindow._reset_run_result_state(self) -> None` — metoda; [wiersz 1391](../src/pymoo_gui/app.py#L1391).
-- `MainWindow._update_run_form_state(self) -> None` — metoda; [wiersz 1397](../src/pymoo_gui/app.py#L1397).
-- `MainWindow._current_nd_save_mode(self) -> str` — metoda; [wiersz 1421](../src/pymoo_gui/app.py#L1421).
-- `MainWindow._update_nd_save_controls_state(self) -> None` — metoda; [wiersz 1426](../src/pymoo_gui/app.py#L1426).
-- `MainWindow._collect_nd_save_args(self) -> Tuple[Optional[dict], Optional[str]]` — metoda; [wiersz 1430](../src/pymoo_gui/app.py#L1430).
-- `MainWindow._set_run_state(self, status_text: str, running: bool) -> None` — metoda; [wiersz 1440](../src/pymoo_gui/app.py#L1440).
-- `MainWindow._apply_generation_payload(self, payload: Mapping[str, Any]) -> None` — metoda; [wiersz 1451](../src/pymoo_gui/app.py#L1451).
-- `MainWindow._apply_problem_preview_state(self, problem: Any) -> None` — metoda; [wiersz 1460](../src/pymoo_gui/app.py#L1460).
-- `MainWindow._refresh_problem_plot(self) -> None` — metoda; [wiersz 1470](../src/pymoo_gui/app.py#L1470).
-- `MainWindow._render_plot(self) -> None` — metoda; [wiersz 1484](../src/pymoo_gui/app.py#L1484).
-- `MainWindow._rebuild_problem_form(self) -> None` — metoda; [wiersz 1501](../src/pymoo_gui/app.py#L1501).
-- `MainWindow._rebuild_alg_form(self) -> None` — metoda; [wiersz 1512](../src/pymoo_gui/app.py#L1512).
-- `MainWindow._connect_problem_param_signals(self) -> None` — metoda; [wiersz 1518](../src/pymoo_gui/app.py#L1518).
-- `MainWindow._on_n_obj_changed(self, _value: int) -> None` — metoda; [wiersz 1535](../src/pymoo_gui/app.py#L1535).
-- `MainWindow._on_problem_form_changed(self, *_args: Any) -> None` — metoda; [wiersz 1540](../src/pymoo_gui/app.py#L1540).
-- `MainWindow._on_show_population_toggled(self, checked: bool) -> None` — metoda; [wiersz 1544](../src/pymoo_gui/app.py#L1544).
-- `MainWindow._on_hide_pareto_front_toggled(self, checked: bool) -> None` — metoda; [wiersz 1549](../src/pymoo_gui/app.py#L1549).
-- `MainWindow._on_auto_scale_toggled(self, checked: bool) -> None` — metoda; [wiersz 1556](../src/pymoo_gui/app.py#L1556).
-- `MainWindow._on_nd_save_mode_changed(self, _index: int) -> None` — metoda; [wiersz 1565](../src/pymoo_gui/app.py#L1565).
-- `MainWindow._on_ran_toggled(self, checked: bool) -> None` — metoda; [wiersz 1569](../src/pymoo_gui/app.py#L1569).
-- `MainWindow._on_parallel_eval_toggled(self, checked: bool) -> None` — metoda; [wiersz 1574](../src/pymoo_gui/app.py#L1574).
-- `MainWindow._toggle_console_dock(self) -> None` — metoda; [wiersz 1579](../src/pymoo_gui/app.py#L1579).
-- `MainWindow._on_console_visibility_changed(self, visible: bool) -> None` — metoda; [wiersz 1583](../src/pymoo_gui/app.py#L1583).
-- `MainWindow._log(self, msg: str) -> None` — metoda; [wiersz 1587](../src/pymoo_gui/app.py#L1587).
-- `MainWindow._warn(self, title: str, message: str, log_message: Optional[str]=None) -> None` — metoda; [wiersz 1593](../src/pymoo_gui/app.py#L1593).
-- `MainWindow._current_n_obj(self) -> int` — metoda; [wiersz 1599](../src/pymoo_gui/app.py#L1599).
-- `MainWindow._parse_float_token(self, token: str) -> Optional[float]` — metoda; [wiersz 1612](../src/pymoo_gui/app.py#L1612).
-- `MainWindow._parse_ref_point_text(self, text: str) -> Tuple[Optional[list[float]], Optional[str]]` — metoda; [wiersz 1630](../src/pymoo_gui/app.py#L1630).
-- `MainWindow._auto_hv_ref_point(self) -> list[float]` — metoda; [wiersz 1651](../src/pymoo_gui/app.py#L1651).
-- `MainWindow._hv_ref_point_state(self) -> Tuple[bool, Optional[list[float]], str, Optional[str]]` — metoda; [wiersz 1655](../src/pymoo_gui/app.py#L1655).
-- `MainWindow._validate_hv_manual_ref_point(self) -> bool` — metoda; [wiersz 1670](../src/pymoo_gui/app.py#L1670).
-- `MainWindow._update_hv_ref_point_label(self) -> None` — metoda; [wiersz 1681](../src/pymoo_gui/app.py#L1681).
-- `MainWindow._on_hv_mode_changed(self, _checked: bool) -> None` — metoda; [wiersz 1691](../src/pymoo_gui/app.py#L1691).
-- `MainWindow._on_hv_manual_changed(self, _text: str) -> None` — metoda; [wiersz 1700](../src/pymoo_gui/app.py#L1700).
-- `MainWindow._on_live_updates_toggled(self, checked: bool) -> None` — metoda; [wiersz 1705](../src/pymoo_gui/app.py#L1705).
-- `MainWindow._update_run_button_state(self) -> None` — metoda; [wiersz 1710](../src/pymoo_gui/app.py#L1710).
-- `MainWindow._update_plot_status(self, payload: Optional[dict]=None, message: Optional[str]=None) -> None` — metoda; [wiersz 1718](../src/pymoo_gui/app.py#L1718).
-- `MainWindow._fmt_int(self, value: Optional[int]) -> str` — metoda; [wiersz 1734](../src/pymoo_gui/app.py#L1734).
-- `MainWindow._fmt_metric(self, value: Optional[float]) -> str` — metoda; [wiersz 1741](../src/pymoo_gui/app.py#L1741).
-- `MainWindow._update_metrics_label(self, payload: Optional[dict]) -> None` — metoda; [wiersz 1748](../src/pymoo_gui/app.py#L1748).
-- `MainWindow._metrics_label_text(self, payload: Mapping[str, Any]) -> str` — metoda; [wiersz 1752](../src/pymoo_gui/app.py#L1752).
-- `MainWindow._clear_table(self) -> None` — metoda; [wiersz 1758](../src/pymoo_gui/app.py#L1758).
-- `MainWindow._should_scroll_table(self) -> bool` — metoda; [wiersz 1763](../src/pymoo_gui/app.py#L1763).
-- `MainWindow._append_generation_row(self, payload: dict) -> None` — metoda; [wiersz 1768](../src/pymoo_gui/app.py#L1768).
-- `MainWindow._append_last_payload_once(self, payload: Mapping[str, Any]) -> None` — metoda; [wiersz 1791](../src/pymoo_gui/app.py#L1791).
-- `MainWindow._metrics_table_data(self) -> Tuple[list[str], list[list[str]]]` — metoda; [wiersz 1799](../src/pymoo_gui/app.py#L1799).
-- `MainWindow._export_metrics_table(self) -> None` — metoda; [wiersz 1815](../src/pymoo_gui/app.py#L1815).
-- `MainWindow._xlsx_value(self, value: Any) -> object` — metoda; [wiersz 1834](../src/pymoo_gui/app.py#L1834).
-- `MainWindow._solution_table_data(self, payload: Mapping[str, Any]) -> Tuple[list[str], list[list[object]]]` — metoda; [wiersz 1846](../src/pymoo_gui/app.py#L1846).
-- `MainWindow._export_solution_table(self, payload: Mapping[str, Any]) -> None` — metoda; [wiersz 1887](../src/pymoo_gui/app.py#L1887).
-- `MainWindow._export_nondominated_solutions_for_epoch(self, payload: Mapping[str, Any]) -> None` — metoda; [wiersz 1916](../src/pymoo_gui/app.py#L1916).
-- `MainWindow._export_nondominated_solutions_for_final_epoch(self, payload: Mapping[str, Any]) -> None` — metoda; [wiersz 1936](../src/pymoo_gui/app.py#L1936).
-- `MainWindow._validated_int(self, value: Any, label: str, minimum: int) -> Tuple[Optional[int], Optional[str]]` — metoda; [wiersz 1961](../src/pymoo_gui/app.py#L1961).
-- `MainWindow._collect_run_args(self) -> Tuple[Optional[dict], Optional[str]]` — metoda; [wiersz 1973](../src/pymoo_gui/app.py#L1973).
-- `MainWindow._collect_algorithm_args(self) -> Tuple[Optional[dict], Optional[str]]` — metoda; [wiersz 2001](../src/pymoo_gui/app.py#L2001).
-- `MainWindow._collect_problem_args(self) -> Tuple[dict, Optional[str]]` — metoda; [wiersz 2011](../src/pymoo_gui/app.py#L2011).
-- `MainWindow._prepare_run_visuals(self) -> None` — metoda; [wiersz 2015](../src/pymoo_gui/app.py#L2015).
-- `MainWindow._finish_run(self, status_text: str, last_payload: Optional[dict]) -> None` — metoda; [wiersz 2026](../src/pymoo_gui/app.py#L2026).
-- `MainWindow._on_generation(self, payload: dict) -> None` — metoda; [wiersz 2043](../src/pymoo_gui/app.py#L2043).
-- `MainWindow.start_run(self) -> None` — metoda; [wiersz 2057](../src/pymoo_gui/app.py#L2057).
-- `MainWindow.stop_run(self) -> None` — metoda; [wiersz 2153](../src/pymoo_gui/app.py#L2153).
-- `MainWindow._on_run_done(self, last_payload: dict) -> None` — metoda; [wiersz 2163](../src/pymoo_gui/app.py#L2163).
-- `MainWindow._on_run_cancelled(self, last_payload: dict) -> None` — metoda; [wiersz 2167](../src/pymoo_gui/app.py#L2167).
-- `MainWindow._on_run_failed(self, err: str) -> None` — metoda; [wiersz 2178](../src/pymoo_gui/app.py#L2178).
-- `MainWindow._clear_console_and_visuals(self) -> None` — metoda; [wiersz 2187](../src/pymoo_gui/app.py#L2187).
-- `main() -> None` — funkcja modułowa; [wiersz 2201](../src/pymoo_gui/app.py#L2201).
+- `NoTermination.__init__(self)` — metoda; [wiersz 66](../src/pymoo_gui/app.py#L66).
+- `NoTermination.update(self, algorithm)` — metoda; [wiersz 71](../src/pymoo_gui/app.py#L71).
+- `NoTermination.has_terminated(self)` — metoda; [wiersz 76](../src/pymoo_gui/app.py#L76).
+- `NoTermination.do_continue(self)` — metoda; [wiersz 80](../src/pymoo_gui/app.py#L80).
+- `translate_ui_text(text: Any) -> str` — funkcja modułowa; [wiersz 264](../src/pymoo_gui/app.py#L264).
+- `pl_param_label(name: str) -> str` — funkcja modułowa; [wiersz 322](../src/pymoo_gui/app.py#L322).
+- `callable_signature(obj: Any) -> inspect.Signature` — funkcja modułowa; [wiersz 327](../src/pymoo_gui/app.py#L327).
+- `filter_callable_kwargs(fn: Any, params: Mapping[str, Any]) -> Dict[str, Any]` — funkcja modułowa; [wiersz 332](../src/pymoo_gui/app.py#L332).
+- `_literal_or_str(value: str) -> Any` — funkcja modułowa; [wiersz 344](../src/pymoo_gui/app.py#L344).
+- `should_save_nondominated_solutions_for_epoch(epoch: Any, mode: str, step: int=1, *, is_final: bool=False) -> bool` — funkcja modułowa; [wiersz 355](../src/pymoo_gui/app.py#L355).
+- `_specs(raw_specs: Optional[Any]) -> list[FieldSpec]` — funkcja modułowa; [wiersz 401](../src/pymoo_gui/app.py#L401).
+- `ParamForm.__init__(self, title: str, parent=None)` — metoda; [wiersz 437](../src/pymoo_gui/app.py#L437).
+- `ParamForm.clear(self) -> None` — metoda; [wiersz 446](../src/pymoo_gui/app.py#L446).
+- `ParamForm.binding(self, name: str) -> Optional[WidgetBinding]` — metoda; [wiersz 452](../src/pymoo_gui/app.py#L452).
+- `ParamForm.bindings(self) -> Sequence[WidgetBinding]` — metoda; [wiersz 456](../src/pymoo_gui/app.py#L456).
+- `ParamForm.build_for_callable(self, fn: Any, extra_fields: Optional[Any]=None) -> None` — metoda; [wiersz 460](../src/pymoo_gui/app.py#L460).
+- `ParamForm.build_for_signature(self, sig: inspect.Signature, extra_fields: Optional[Any]=None) -> None` — metoda; [wiersz 464](../src/pymoo_gui/app.py#L464).
+- `ParamForm.build_from_specs(self, raw_specs: Optional[Any]) -> None` — metoda; [wiersz 479](../src/pymoo_gui/app.py#L479).
+- `ParamForm._kind(self, annotation: Any, default: Any) -> str` — metoda; [wiersz 485](../src/pymoo_gui/app.py#L485).
+- `ParamForm._bounds(self, spec: FieldSpec) -> Tuple[float, float]` — metoda; [wiersz 497](../src/pymoo_gui/app.py#L497).
+- `ParamForm._apply_read_only(self, widget: Any, spec: FieldSpec) -> None` — metoda; [wiersz 516](../src/pymoo_gui/app.py#L516).
+- `ParamForm._add_field(self, spec: FieldSpec) -> None` — metoda; [wiersz 529](../src/pymoo_gui/app.py#L529).
+- `ParamForm.values(self) -> Dict[str, Any]` — metoda; [wiersz 571](../src/pymoo_gui/app.py#L571).
+- `OptimizationWorker.__init__(self, problem_key: str, alg_key: str, problem_params: Mapping[str, Any], algorithm_params: Mapping[str, Any], n_gen: Optional[int], seed: int, verbose: bool, hv_ref_point: Optional[list[float]], parallel_eval: bool=False, parallel_workers: int=1, parallel_backend: str='process', parent=None, step_mode: bool=False)` — metoda; [wiersz 605](../src/pymoo_gui/app.py#L605).
+- `OptimizationWorker.request_cancel(self) -> None` — metoda; [wiersz 640](../src/pymoo_gui/app.py#L640).
+- `OptimizationWorker.request_next_epoch(self) -> bool` — metoda; [wiersz 647](../src/pymoo_gui/app.py#L647).
+- `OptimizationWorker._cancel_pending(self) -> bool` — metoda; [wiersz 656](../src/pymoo_gui/app.py#L656).
+- `OptimizationWorker._emit_generation(self, payload: dict) -> None` — metoda; [wiersz 660](../src/pymoo_gui/app.py#L660).
+- `OptimizationWorker.run(self) -> None` — metoda; [wiersz 676](../src/pymoo_gui/app.py#L676).
+- `MainWindow.__init__(self)` — metoda; [wiersz 728](../src/pymoo_gui/app.py#L728).
+- `MainWindow._apply_default_window_geometry(self) -> None` — metoda; [wiersz 766](../src/pymoo_gui/app.py#L766).
+- `MainWindow.showEvent(self, event) -> None` — metoda; [wiersz 774](../src/pymoo_gui/app.py#L774).
+- `MainWindow._make_window_square(self) -> None` — metoda; [wiersz 781](../src/pymoo_gui/app.py#L781).
+- `MainWindow._build_ui(self) -> None` — metoda; [wiersz 786](../src/pymoo_gui/app.py#L786).
+- `MainWindow._build_checkable_registry_list(self, registry: Mapping[str, Dict[str, Any]]) -> QListWidget` — metoda; [wiersz 817](../src/pymoo_gui/app.py#L817).
+- `MainWindow._build_multi_selection_group(self, title: str, widget: QListWidget) -> QGroupBox` — metoda; [wiersz 829](../src/pymoo_gui/app.py#L829).
+- `MainWindow._build_multi_panel(self) -> QWidget` — metoda; [wiersz 844](../src/pymoo_gui/app.py#L844).
+- `MainWindow._apply_english_ui_texts(self) -> None` — metoda; [wiersz 929](../src/pymoo_gui/app.py#L929).
+- `MainWindow._build_controls_panel(self) -> QWidget` — metoda; [wiersz 949](../src/pymoo_gui/app.py#L949).
+- `MainWindow._build_results_panel(self) -> QWidget` — metoda; [wiersz 961](../src/pymoo_gui/app.py#L961).
+- `MainWindow._build_problem_controls(self) -> None` — metoda; [wiersz 1024](../src/pymoo_gui/app.py#L1024).
+- `MainWindow._build_hv_controls(self) -> None` — metoda; [wiersz 1043](../src/pymoo_gui/app.py#L1043).
+- `MainWindow._build_run_controls(self) -> None` — metoda; [wiersz 1062](../src/pymoo_gui/app.py#L1062).
+- `MainWindow._build_console(self) -> None` — metoda; [wiersz 1111](../src/pymoo_gui/app.py#L1111).
+- `MainWindow._connect_signals(self) -> None` — metoda; [wiersz 1121](../src/pymoo_gui/app.py#L1121).
+- `MainWindow._configure_placeholders(self) -> None` — metoda; [wiersz 1160](../src/pymoo_gui/app.py#L1160).
+- `MainWindow._set_all_multi_items(self, widget: QListWidget, checked: bool) -> None` — metoda; [wiersz 1176](../src/pymoo_gui/app.py#L1176).
+- `MainWindow._checked_multi_keys(self, widget: QListWidget) -> list[str]` — metoda; [wiersz 1189](../src/pymoo_gui/app.py#L1189).
+- `MainWindow._update_multi_selection_state(self, *_args: Any) -> None` — metoda; [wiersz 1200](../src/pymoo_gui/app.py#L1200).
+- `MainWindow._set_multi_running_state(self, running: bool) -> None` — metoda; [wiersz 1213](../src/pymoo_gui/app.py#L1213).
+- `MainWindow._multi_row_key(self, payload: Mapping[str, Any]) -> tuple[str, str]` — metoda; [wiersz 1229](../src/pymoo_gui/app.py#L1229).
+- `MainWindow._set_multi_table_value(self, row: int, column: int, value: Any) -> None` — metoda; [wiersz 1233](../src/pymoo_gui/app.py#L1233).
+- `MainWindow._on_multi_run_started(self, payload: Mapping[str, Any]) -> None` — metoda; [wiersz 1240](../src/pymoo_gui/app.py#L1240).
+- `MainWindow._on_multi_run_progress(self, payload: Mapping[str, Any]) -> None` — metoda; [wiersz 1264](../src/pymoo_gui/app.py#L1264).
+- `MainWindow._on_multi_run_finished(self, payload: Mapping[str, Any]) -> None` — metoda; [wiersz 1283](../src/pymoo_gui/app.py#L1283).
+- `MainWindow.start_multi_experiment(self) -> None` — metoda; [wiersz 1309](../src/pymoo_gui/app.py#L1309).
+- `MainWindow.stop_multi_experiment(self) -> None` — metoda; [wiersz 1360](../src/pymoo_gui/app.py#L1360).
+- `MainWindow._finish_multi_experiment(self, status: str, results: Sequence[Mapping[str, Any]]) -> None` — metoda; [wiersz 1370](../src/pymoo_gui/app.py#L1370).
+- `MainWindow._on_multi_experiment_done(self, results: Sequence[Mapping[str, Any]]) -> None` — metoda; [wiersz 1386](../src/pymoo_gui/app.py#L1386).
+- `MainWindow._on_multi_experiment_cancelled(self, results: Sequence[Mapping[str, Any]]) -> None` — metoda; [wiersz 1390](../src/pymoo_gui/app.py#L1390).
+- `MainWindow._on_multi_experiment_failed(self, error: str) -> None` — metoda; [wiersz 1394](../src/pymoo_gui/app.py#L1394).
+- `MainWindow._entry(self, combo: QComboBox, registry: Mapping[str, Dict[str, Any]]) -> Dict[str, Any]` — metoda; [wiersz 1402](../src/pymoo_gui/app.py#L1402).
+- `MainWindow._known_pf_for_problem(self, entry: Mapping[str, Any], problem: Any) -> Optional[np.ndarray]` — metoda; [wiersz 1407](../src/pymoo_gui/app.py#L1407).
+- `MainWindow._instantiate_selected_problem(self, params: Optional[Mapping[str, Any]]=None) -> Tuple[Optional[Any], Optional[str]]` — metoda; [wiersz 1428](../src/pymoo_gui/app.py#L1428).
+- `MainWindow._connect_problem_form_signals(self) -> None` — metoda; [wiersz 1443](../src/pymoo_gui/app.py#L1443).
+- `MainWindow._ensure_plot_widget(self) -> UnifiedParetoWidget` — metoda; [wiersz 1456](../src/pymoo_gui/app.py#L1456).
+- `MainWindow._reset_plot_axes(self) -> None` — metoda; [wiersz 1481](../src/pymoo_gui/app.py#L1481).
+- `MainWindow._set_plot_message(self, text: str) -> None` — metoda; [wiersz 1486](../src/pymoo_gui/app.py#L1486).
+- `MainWindow._reset_plot_run_data(self) -> None` — metoda; [wiersz 1494](../src/pymoo_gui/app.py#L1494).
+- `MainWindow._update_epoch_controls(self) -> None` — metoda; [wiersz 1502](../src/pymoo_gui/app.py#L1502).
+- `MainWindow._remember_epoch(self, payload: Mapping[str, Any]) -> None` — metoda; [wiersz 1515](../src/pymoo_gui/app.py#L1515).
+- `MainWindow._show_epoch(self, epoch: int) -> None` — metoda; [wiersz 1527](../src/pymoo_gui/app.py#L1527).
+- `MainWindow._move_epoch(self, direction: int) -> None` — metoda; [wiersz 1536](../src/pymoo_gui/app.py#L1536).
+- `MainWindow._show_latest_epoch(self) -> None` — metoda; [wiersz 1542](../src/pymoo_gui/app.py#L1542).
+- `MainWindow._apply_grid_options(self, *_args: Any) -> None` — metoda; [wiersz 1546](../src/pymoo_gui/app.py#L1546).
+- `MainWindow._export_window_screenshot(self) -> None` — metoda; [wiersz 1551](../src/pymoo_gui/app.py#L1551).
+- `MainWindow._export_plot_png(self) -> None` — metoda; [wiersz 1567](../src/pymoo_gui/app.py#L1567).
+- `MainWindow._run_next_epoch(self) -> None` — metoda; [wiersz 1583](../src/pymoo_gui/app.py#L1583).
+- `MainWindow._reset_run_result_state(self) -> None` — metoda; [wiersz 1592](../src/pymoo_gui/app.py#L1592).
+- `MainWindow._update_run_form_state(self) -> None` — metoda; [wiersz 1598](../src/pymoo_gui/app.py#L1598).
+- `MainWindow._current_nd_save_mode(self) -> str` — metoda; [wiersz 1622](../src/pymoo_gui/app.py#L1622).
+- `MainWindow._update_nd_save_controls_state(self) -> None` — metoda; [wiersz 1627](../src/pymoo_gui/app.py#L1627).
+- `MainWindow._collect_nd_save_args(self) -> Tuple[Optional[dict], Optional[str]]` — metoda; [wiersz 1631](../src/pymoo_gui/app.py#L1631).
+- `MainWindow._set_run_state(self, status_text: str, running: bool) -> None` — metoda; [wiersz 1641](../src/pymoo_gui/app.py#L1641).
+- `MainWindow._apply_generation_payload(self, payload: Mapping[str, Any]) -> None` — metoda; [wiersz 1657](../src/pymoo_gui/app.py#L1657).
+- `MainWindow._apply_problem_preview_state(self, problem: Any) -> None` — metoda; [wiersz 1666](../src/pymoo_gui/app.py#L1666).
+- `MainWindow._refresh_problem_plot(self) -> None` — metoda; [wiersz 1676](../src/pymoo_gui/app.py#L1676).
+- `MainWindow._render_plot(self) -> None` — metoda; [wiersz 1690](../src/pymoo_gui/app.py#L1690).
+- `MainWindow._rebuild_problem_form(self) -> None` — metoda; [wiersz 1707](../src/pymoo_gui/app.py#L1707).
+- `MainWindow._rebuild_alg_form(self) -> None` — metoda; [wiersz 1718](../src/pymoo_gui/app.py#L1718).
+- `MainWindow._connect_problem_param_signals(self) -> None` — metoda; [wiersz 1724](../src/pymoo_gui/app.py#L1724).
+- `MainWindow._on_n_obj_changed(self, _value: int) -> None` — metoda; [wiersz 1741](../src/pymoo_gui/app.py#L1741).
+- `MainWindow._on_problem_form_changed(self, *_args: Any) -> None` — metoda; [wiersz 1746](../src/pymoo_gui/app.py#L1746).
+- `MainWindow._on_show_population_toggled(self, checked: bool) -> None` — metoda; [wiersz 1750](../src/pymoo_gui/app.py#L1750).
+- `MainWindow._on_hide_pareto_front_toggled(self, checked: bool) -> None` — metoda; [wiersz 1755](../src/pymoo_gui/app.py#L1755).
+- `MainWindow._on_auto_scale_toggled(self, checked: bool) -> None` — metoda; [wiersz 1762](../src/pymoo_gui/app.py#L1762).
+- `MainWindow._on_nd_save_mode_changed(self, _index: int) -> None` — metoda; [wiersz 1771](../src/pymoo_gui/app.py#L1771).
+- `MainWindow._on_ran_toggled(self, checked: bool) -> None` — metoda; [wiersz 1775](../src/pymoo_gui/app.py#L1775).
+- `MainWindow._on_parallel_eval_toggled(self, checked: bool) -> None` — metoda; [wiersz 1780](../src/pymoo_gui/app.py#L1780).
+- `MainWindow._toggle_console_dock(self) -> None` — metoda; [wiersz 1785](../src/pymoo_gui/app.py#L1785).
+- `MainWindow._on_console_visibility_changed(self, visible: bool) -> None` — metoda; [wiersz 1789](../src/pymoo_gui/app.py#L1789).
+- `MainWindow._log(self, msg: str) -> None` — metoda; [wiersz 1793](../src/pymoo_gui/app.py#L1793).
+- `MainWindow._warn(self, title: str, message: str, log_message: Optional[str]=None) -> None` — metoda; [wiersz 1799](../src/pymoo_gui/app.py#L1799).
+- `MainWindow._current_n_obj(self) -> int` — metoda; [wiersz 1805](../src/pymoo_gui/app.py#L1805).
+- `MainWindow._parse_float_token(self, token: str) -> Optional[float]` — metoda; [wiersz 1818](../src/pymoo_gui/app.py#L1818).
+- `MainWindow._parse_ref_point_text(self, text: str) -> Tuple[Optional[list[float]], Optional[str]]` — metoda; [wiersz 1836](../src/pymoo_gui/app.py#L1836).
+- `MainWindow._auto_hv_ref_point(self) -> list[float]` — metoda; [wiersz 1857](../src/pymoo_gui/app.py#L1857).
+- `MainWindow._hv_ref_point_state(self) -> Tuple[bool, Optional[list[float]], str, Optional[str]]` — metoda; [wiersz 1861](../src/pymoo_gui/app.py#L1861).
+- `MainWindow._validate_hv_manual_ref_point(self) -> bool` — metoda; [wiersz 1876](../src/pymoo_gui/app.py#L1876).
+- `MainWindow._update_hv_ref_point_label(self) -> None` — metoda; [wiersz 1887](../src/pymoo_gui/app.py#L1887).
+- `MainWindow._on_hv_mode_changed(self, _checked: bool) -> None` — metoda; [wiersz 1897](../src/pymoo_gui/app.py#L1897).
+- `MainWindow._on_hv_manual_changed(self, _text: str) -> None` — metoda; [wiersz 1906](../src/pymoo_gui/app.py#L1906).
+- `MainWindow._on_live_updates_toggled(self, checked: bool) -> None` — metoda; [wiersz 1911](../src/pymoo_gui/app.py#L1911).
+- `MainWindow._update_run_button_state(self) -> None` — metoda; [wiersz 1916](../src/pymoo_gui/app.py#L1916).
+- `MainWindow._update_plot_status(self, payload: Optional[dict]=None, message: Optional[str]=None) -> None` — metoda; [wiersz 1926](../src/pymoo_gui/app.py#L1926).
+- `MainWindow._fmt_int(self, value: Optional[int]) -> str` — metoda; [wiersz 1942](../src/pymoo_gui/app.py#L1942).
+- `MainWindow._fmt_metric(self, value: Optional[float]) -> str` — metoda; [wiersz 1949](../src/pymoo_gui/app.py#L1949).
+- `MainWindow._update_metrics_label(self, payload: Optional[dict]) -> None` — metoda; [wiersz 1956](../src/pymoo_gui/app.py#L1956).
+- `MainWindow._metrics_label_text(self, payload: Mapping[str, Any]) -> str` — metoda; [wiersz 1960](../src/pymoo_gui/app.py#L1960).
+- `MainWindow._clear_table(self) -> None` — metoda; [wiersz 1966](../src/pymoo_gui/app.py#L1966).
+- `MainWindow._should_scroll_table(self) -> bool` — metoda; [wiersz 1971](../src/pymoo_gui/app.py#L1971).
+- `MainWindow._append_generation_row(self, payload: dict) -> None` — metoda; [wiersz 1976](../src/pymoo_gui/app.py#L1976).
+- `MainWindow._append_last_payload_once(self, payload: Mapping[str, Any]) -> None` — metoda; [wiersz 1999](../src/pymoo_gui/app.py#L1999).
+- `MainWindow._metrics_table_data(self) -> Tuple[list[str], list[list[str]]]` — metoda; [wiersz 2007](../src/pymoo_gui/app.py#L2007).
+- `MainWindow._export_metrics_table(self) -> None` — metoda; [wiersz 2023](../src/pymoo_gui/app.py#L2023).
+- `MainWindow._xlsx_value(self, value: Any) -> object` — metoda; [wiersz 2042](../src/pymoo_gui/app.py#L2042).
+- `MainWindow._solution_table_data(self, payload: Mapping[str, Any]) -> Tuple[list[str], list[list[object]]]` — metoda; [wiersz 2054](../src/pymoo_gui/app.py#L2054).
+- `MainWindow._export_solution_table(self, payload: Mapping[str, Any]) -> None` — metoda; [wiersz 2095](../src/pymoo_gui/app.py#L2095).
+- `MainWindow._export_nondominated_solutions_for_epoch(self, payload: Mapping[str, Any]) -> None` — metoda; [wiersz 2124](../src/pymoo_gui/app.py#L2124).
+- `MainWindow._export_nondominated_solutions_for_final_epoch(self, payload: Mapping[str, Any]) -> None` — metoda; [wiersz 2144](../src/pymoo_gui/app.py#L2144).
+- `MainWindow._validated_int(self, value: Any, label: str, minimum: int) -> Tuple[Optional[int], Optional[str]]` — metoda; [wiersz 2169](../src/pymoo_gui/app.py#L2169).
+- `MainWindow._collect_run_args(self) -> Tuple[Optional[dict], Optional[str]]` — metoda; [wiersz 2181](../src/pymoo_gui/app.py#L2181).
+- `MainWindow._collect_algorithm_args(self) -> Tuple[Optional[dict], Optional[str]]` — metoda; [wiersz 2209](../src/pymoo_gui/app.py#L2209).
+- `MainWindow._collect_problem_args(self) -> Tuple[dict, Optional[str]]` — metoda; [wiersz 2219](../src/pymoo_gui/app.py#L2219).
+- `MainWindow._prepare_run_visuals(self) -> None` — metoda; [wiersz 2223](../src/pymoo_gui/app.py#L2223).
+- `MainWindow._finish_run(self, status_text: str, last_payload: Optional[dict]) -> None` — metoda; [wiersz 2237](../src/pymoo_gui/app.py#L2237).
+- `MainWindow._on_generation(self, payload: dict) -> None` — metoda; [wiersz 2256](../src/pymoo_gui/app.py#L2256).
+- `MainWindow.start_run(self, _checked: bool=False, *, step_mode: bool=False) -> None` — metoda; [wiersz 2279](../src/pymoo_gui/app.py#L2279).
+- `MainWindow.stop_run(self) -> None` — metoda; [wiersz 2381](../src/pymoo_gui/app.py#L2381).
+- `MainWindow._on_run_done(self, last_payload: dict) -> None` — metoda; [wiersz 2392](../src/pymoo_gui/app.py#L2392).
+- `MainWindow._on_run_cancelled(self, last_payload: dict) -> None` — metoda; [wiersz 2396](../src/pymoo_gui/app.py#L2396).
+- `MainWindow._on_run_failed(self, err: str) -> None` — metoda; [wiersz 2401](../src/pymoo_gui/app.py#L2401).
+- `MainWindow._clear_console_and_visuals(self) -> None` — metoda; [wiersz 2410](../src/pymoo_gui/app.py#L2410).
+- `MainWindow.closeEvent(self, event) -> None` — metoda; [wiersz 2423](../src/pymoo_gui/app.py#L2423).
+- `main() -> None` — funkcja modułowa; [wiersz 2437](../src/pymoo_gui/app.py#L2437).
+- `lambda` — wyrażenie anonimowe; [wiersz 837](../src/pymoo_gui/app.py#L837).
+- `lambda` — wyrażenie anonimowe; [wiersz 838](../src/pymoo_gui/app.py#L838).
+- `lambda` — wyrażenie anonimowe; [wiersz 1135](../src/pymoo_gui/app.py#L1135).
+- `lambda` — wyrażenie anonimowe; [wiersz 1136](../src/pymoo_gui/app.py#L1136).
+
+### `src/pymoo_gui/metrics/__init__.py`
+
+Brak deklaracji funkcji i wyrażeń `lambda`.
 
 ### `src/pymoo_gui/metrics/export.py`
 
@@ -538,26 +586,28 @@ Sygnatury są zapisane dokładnie na podstawie drzewa składniowego Pythona. Naz
 
 ### `src/pymoo_gui/metrics/quality.py`
 
-- `_safe_float(x) -> Optional[float]` — funkcja modułowa; [wiersz 52](../src/pymoo_gui/metrics/quality.py#L52).
-- `_as_2d(arr: Optional[np.ndarray], n_obj: Optional[int]=None) -> Optional[np.ndarray]` — funkcja modułowa; [wiersz 60](../src/pymoo_gui/metrics/quality.py#L60).
-- `_as_decision_matrix(values: Optional[np.ndarray], n_var: Optional[int]=None) -> Optional[np.ndarray]` — funkcja modułowa; [wiersz 79](../src/pymoo_gui/metrics/quality.py#L79).
-- `_finite_rows(arr: np.ndarray) -> np.ndarray` — funkcja modułowa; [wiersz 96](../src/pymoo_gui/metrics/quality.py#L96).
-- `_safe_solve(A: np.ndarray, b: np.ndarray) -> Optional[np.ndarray]` — funkcja modułowa; [wiersz 102](../src/pymoo_gui/metrics/quality.py#L102).
-- `_problem_n_ieq_constr(problem: Any) -> int` — funkcja modułowa; [wiersz 113](../src/pymoo_gui/metrics/quality.py#L113).
-- `_problem_bounds(problem: Any, n_var: int) -> tuple[np.ndarray, np.ndarray]` — funkcja modułowa; [wiersz 125](../src/pymoo_gui/metrics/quality.py#L125).
-- `_problem_bounds._bound(name: str, fill: float) -> np.ndarray` — funkcja zagnieżdżona; [wiersz 127](../src/pymoo_gui/metrics/quality.py#L127).
-- `_evaluate_fg(problem: Any, X: np.ndarray) -> Optional[tuple[np.ndarray, np.ndarray]]` — funkcja modułowa; [wiersz 146](../src/pymoo_gui/metrics/quality.py#L146).
-- `_valid_derivative(values: Any, expected_shape: tuple[int, int, int]) -> Optional[np.ndarray]` — funkcja modułowa; [wiersz 170](../src/pymoo_gui/metrics/quality.py#L170).
-- `_finite_difference_derivatives(problem: Any, X: np.ndarray, F: np.ndarray, G: np.ndarray, eps: float=FINITE_DIFF_EPS) -> tuple[Optional[np.ndarray], Optional[np.ndarray]]` — funkcja modułowa; [wiersz 181](../src/pymoo_gui/metrics/quality.py#L181).
-- `_evaluate_kktpm_inputs(X: np.ndarray, problem: Any, finite_diff_eps: float=FINITE_DIFF_EPS) -> Optional[tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]]` — funkcja modułowa; [wiersz 243](../src/pymoo_gui/metrics/quality.py#L243).
-- `_calc_cv(G: np.ndarray) -> np.ndarray` — funkcja modułowa; [wiersz 280](../src/pymoo_gui/metrics/quality.py#L280).
-- `compute_spread(F: np.ndarray) -> Optional[float]` — funkcja modułowa; [wiersz 287](../src/pymoo_gui/metrics/quality.py#L287).
-- `compute_delta(F: np.ndarray, pareto_front: np.ndarray) -> Optional[float]` — funkcja modułowa; [wiersz 317](../src/pymoo_gui/metrics/quality.py#L317).
-- `compute_kktpm(X: np.ndarray, problem: Any, ideal: Optional[np.ndarray]=None, utopian_eps: float=0.0001, rho: float=0.001, finite_diff_eps: float=FINITE_DIFF_EPS) -> Optional[np.ndarray]` — funkcja modułowa; [wiersz 343](../src/pymoo_gui/metrics/quality.py#L343).
-- `_feasibility_mask_from_cv(cv: Optional[np.ndarray]) -> Optional[np.ndarray]` — funkcja modułowa; [wiersz 460](../src/pymoo_gui/metrics/quality.py#L460).
-- `compute_metrics(F: np.ndarray, pareto_front: Optional[np.ndarray], cv: Optional[np.ndarray]=None, ref_point: Optional[np.ndarray]=None, n_obj: Optional[int]=None, X: Optional[np.ndarray]=None, problem: Any=None, kktpm_ideal: Optional[np.ndarray]=None, delta_supported: bool=False) -> MetricResult` — funkcja modułowa; [wiersz 475](../src/pymoo_gui/metrics/quality.py#L475).
-- `get_hv_ref_point(problem_name: Optional[str], n_obj: Optional[int]) -> Optional[np.ndarray]` — funkcja modułowa; [wiersz 607](../src/pymoo_gui/metrics/quality.py#L607).
-- `fixed_ref_point_for_problem(problem_name: Optional[str], n_obj: Optional[int]) -> Optional[np.ndarray]` — funkcja modułowa; [wiersz 623](../src/pymoo_gui/metrics/quality.py#L623).
+- `is_delta_supported(algorithm_key: Optional[str], n_obj: Optional[int]=None) -> bool` — funkcja modułowa; [wiersz 35](../src/pymoo_gui/metrics/quality.py#L35).
+- `_safe_float(x) -> Optional[float]` — funkcja modułowa; [wiersz 62](../src/pymoo_gui/metrics/quality.py#L62).
+- `_as_2d(arr: Optional[np.ndarray], n_obj: Optional[int]=None) -> Optional[np.ndarray]` — funkcja modułowa; [wiersz 70](../src/pymoo_gui/metrics/quality.py#L70).
+- `_as_decision_matrix(values: Optional[np.ndarray], n_var: Optional[int]=None) -> Optional[np.ndarray]` — funkcja modułowa; [wiersz 89](../src/pymoo_gui/metrics/quality.py#L89).
+- `_finite_rows(arr: np.ndarray) -> np.ndarray` — funkcja modułowa; [wiersz 106](../src/pymoo_gui/metrics/quality.py#L106).
+- `_safe_solve(A: np.ndarray, b: np.ndarray) -> Optional[np.ndarray]` — funkcja modułowa; [wiersz 112](../src/pymoo_gui/metrics/quality.py#L112).
+- `_problem_n_ieq_constr(problem: Any) -> int` — funkcja modułowa; [wiersz 123](../src/pymoo_gui/metrics/quality.py#L123).
+- `_problem_bounds(problem: Any, n_var: int) -> tuple[np.ndarray, np.ndarray]` — funkcja modułowa; [wiersz 135](../src/pymoo_gui/metrics/quality.py#L135).
+- `_problem_bounds._bound(name: str, fill: float) -> np.ndarray` — funkcja zagnieżdżona; [wiersz 137](../src/pymoo_gui/metrics/quality.py#L137).
+- `_evaluate_fg(problem: Any, X: np.ndarray) -> Optional[tuple[np.ndarray, np.ndarray]]` — funkcja modułowa; [wiersz 156](../src/pymoo_gui/metrics/quality.py#L156).
+- `_valid_derivative(values: Any, expected_shape: tuple[int, int, int]) -> Optional[np.ndarray]` — funkcja modułowa; [wiersz 180](../src/pymoo_gui/metrics/quality.py#L180).
+- `_finite_difference_derivatives(problem: Any, X: np.ndarray, F: np.ndarray, G: np.ndarray, eps: float=FINITE_DIFF_EPS) -> tuple[Optional[np.ndarray], Optional[np.ndarray]]` — funkcja modułowa; [wiersz 191](../src/pymoo_gui/metrics/quality.py#L191).
+- `_evaluate_kktpm_inputs(X: np.ndarray, problem: Any, finite_diff_eps: float=FINITE_DIFF_EPS) -> Optional[tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]]` — funkcja modułowa; [wiersz 253](../src/pymoo_gui/metrics/quality.py#L253).
+- `_append_bound_constraints(problem: Any, X: np.ndarray, G: np.ndarray, dG: np.ndarray) -> tuple[np.ndarray, np.ndarray]` — funkcja modułowa; [wiersz 291](../src/pymoo_gui/metrics/quality.py#L291).
+- `_calc_cv(G: np.ndarray) -> np.ndarray` — funkcja modułowa; [wiersz 334](../src/pymoo_gui/metrics/quality.py#L334).
+- `compute_spread(F: np.ndarray) -> Optional[float]` — funkcja modułowa; [wiersz 341](../src/pymoo_gui/metrics/quality.py#L341).
+- `compute_delta(F: np.ndarray, pareto_front: np.ndarray) -> Optional[float]` — funkcja modułowa; [wiersz 371](../src/pymoo_gui/metrics/quality.py#L371).
+- `compute_kktpm(X: np.ndarray, problem: Any, ideal: Optional[np.ndarray]=None, utopian_eps: float=0.0001, rho: float=0.001, finite_diff_eps: float=FINITE_DIFF_EPS) -> Optional[np.ndarray]` — funkcja modułowa; [wiersz 417](../src/pymoo_gui/metrics/quality.py#L417).
+- `_feasibility_mask_from_cv(cv: Optional[np.ndarray]) -> Optional[np.ndarray]` — funkcja modułowa; [wiersz 534](../src/pymoo_gui/metrics/quality.py#L534).
+- `compute_metrics(F: np.ndarray, pareto_front: Optional[np.ndarray], cv: Optional[np.ndarray]=None, ref_point: Optional[np.ndarray]=None, n_obj: Optional[int]=None, X: Optional[np.ndarray]=None, problem: Any=None, kktpm_ideal: Optional[np.ndarray]=None, delta_supported: bool=True) -> MetricResult` — funkcja modułowa; [wiersz 549](../src/pymoo_gui/metrics/quality.py#L549).
+- `get_hv_ref_point(problem_name: Optional[str], n_obj: Optional[int]) -> Optional[np.ndarray]` — funkcja modułowa; [wiersz 681](../src/pymoo_gui/metrics/quality.py#L681).
+- `fixed_ref_point_for_problem(problem_name: Optional[str], n_obj: Optional[int]) -> Optional[np.ndarray]` — funkcja modułowa; [wiersz 697](../src/pymoo_gui/metrics/quality.py#L697).
 
 ### `src/pymoo_gui/multi.py`
 
@@ -575,6 +625,11 @@ Sygnatury są zapisane dokładnie na podstawie drzewa składniowego Pythona. Naz
 - `MultiExperimentWorker._execute_spec.on_generation(payload: Mapping[str, Any]) -> None` — funkcja zagnieżdżona; [wiersz 277](../src/pymoo_gui/multi.py#L277).
 - `MultiExperimentWorker.run(self) -> None` — metoda; [wiersz 362](../src/pymoo_gui/multi.py#L362).
 
+### `src/pymoo_gui/packaging_smoke.py`
+
+- `_offline_socket(*args, **kwargs)` — funkcja modułowa; [wiersz 11](../src/pymoo_gui/packaging_smoke.py#L11).
+- `main(args: list[str]) -> int` — funkcja modułowa; [wiersz 15](../src/pymoo_gui/packaging_smoke.py#L15).
+
 ### `src/pymoo_gui/parallel.py`
 
 - `_init_process_problem(problem: Any) -> None` — funkcja modułowa; [wiersz 23](../src/pymoo_gui/parallel.py#L23).
@@ -589,6 +644,10 @@ Sygnatury są zapisane dokładnie na podstawie drzewa składniowego Pythona. Naz
 - `ParallelProblem._evaluate(self, X: np.ndarray, out: dict[str, Any], *args: Any, **kwargs: Any) -> None` — metoda; [wiersz 119](../src/pymoo_gui/parallel.py#L119).
 - `ParallelProblem.close(self) -> None` — metoda; [wiersz 133](../src/pymoo_gui/parallel.py#L133).
 - `make_parallel_problem(problem: Any, workers: int, backend: str='process') -> ParallelProblem` — funkcja modułowa; [wiersz 150](../src/pymoo_gui/parallel.py#L150).
+
+### `src/pymoo_gui/problems/__init__.py`
+
+Brak deklaracji funkcji i wyrażeń `lambda`.
 
 ### `src/pymoo_gui/problems/binh2.py`
 
@@ -666,6 +725,30 @@ Sygnatury są zapisane dokładnie na podstawie drzewa składniowego Pythona. Naz
 - `make_kursawe(n_var: int=3) -> KursaweProblem` — funkcja modułowa; [wiersz 304](../src/pymoo_gui/problems/registry.py#L304).
 - `make_schaffer() -> SchafferProblem` — funkcja modułowa; [wiersz 308](../src/pymoo_gui/problems/registry.py#L308).
 - `make_zdt5()` — funkcja modułowa; [wiersz 312](../src/pymoo_gui/problems/registry.py#L312).
+- `lambda` — wyrażenie anonimowe; [wiersz 112](../src/pymoo_gui/problems/registry.py#L112).
+- `lambda` — wyrażenie anonimowe; [wiersz 221](../src/pymoo_gui/problems/registry.py#L221).
+- `lambda` — wyrażenie anonimowe; [wiersz 236](../src/pymoo_gui/problems/registry.py#L236).
+- `lambda` — wyrażenie anonimowe; [wiersz 285](../src/pymoo_gui/problems/registry.py#L285).
+- `lambda` — wyrażenie anonimowe; [wiersz 336](../src/pymoo_gui/problems/registry.py#L336).
+- `lambda` — wyrażenie anonimowe; [wiersz 369](../src/pymoo_gui/problems/registry.py#L369).
+- `lambda` — wyrażenie anonimowe; [wiersz 376](../src/pymoo_gui/problems/registry.py#L376).
+- `lambda` — wyrażenie anonimowe; [wiersz 383](../src/pymoo_gui/problems/registry.py#L383).
+- `lambda` — wyrażenie anonimowe; [wiersz 390](../src/pymoo_gui/problems/registry.py#L390).
+- `lambda` — wyrażenie anonimowe; [wiersz 397](../src/pymoo_gui/problems/registry.py#L397).
+- `lambda` — wyrażenie anonimowe; [wiersz 404](../src/pymoo_gui/problems/registry.py#L404).
+- `lambda` — wyrażenie anonimowe; [wiersz 411](../src/pymoo_gui/problems/registry.py#L411).
+- `lambda` — wyrażenie anonimowe; [wiersz 418](../src/pymoo_gui/problems/registry.py#L418).
+- `lambda` — wyrażenie anonimowe; [wiersz 425](../src/pymoo_gui/problems/registry.py#L425).
+- `lambda` — wyrażenie anonimowe; [wiersz 430](../src/pymoo_gui/problems/registry.py#L430).
+- `lambda` — wyrażenie anonimowe; [wiersz 431](../src/pymoo_gui/problems/registry.py#L431).
+- `lambda` — wyrażenie anonimowe; [wiersz 432](../src/pymoo_gui/problems/registry.py#L432).
+- `lambda` — wyrażenie anonimowe; [wiersz 433](../src/pymoo_gui/problems/registry.py#L433).
+- `lambda` — wyrażenie anonimowe; [wiersz 434](../src/pymoo_gui/problems/registry.py#L434).
+- `lambda` — wyrażenie anonimowe; [wiersz 435](../src/pymoo_gui/problems/registry.py#L435).
+- `lambda` — wyrażenie anonimowe; [wiersz 436](../src/pymoo_gui/problems/registry.py#L436).
+- `lambda` — wyrażenie anonimowe; [wiersz 437](../src/pymoo_gui/problems/registry.py#L437).
+- `lambda` — wyrażenie anonimowe; [wiersz 438](../src/pymoo_gui/problems/registry.py#L438).
+- `lambda` — wyrażenie anonimowe; [wiersz 439](../src/pymoo_gui/problems/registry.py#L439).
 
 ### `src/pymoo_gui/problems/schaffer.py`
 
@@ -720,100 +803,98 @@ Sygnatury są zapisane dokładnie na podstawie drzewa składniowego Pythona. Naz
 - `default_wfg_n_var(n_obj: int) -> int` — funkcja modułowa; [wiersz 17](../src/pymoo_gui/problems/wfg.py#L17).
 - `make_wfg_problem(problem_name: str, n_obj: int, n_var: int | None=None)` — funkcja modułowa; [wiersz 23](../src/pymoo_gui/problems/wfg.py#L23).
 
+### `src/pymoo_gui/runtime.py`
+
+- `results_root() -> Path` — funkcja modułowa; [wiersz 7](../src/pymoo_gui/runtime.py#L7).
+
+### `src/pymoo_gui/viz/__init__.py`
+
+Brak deklaracji funkcji i wyrażeń `lambda`.
+
 ### `src/pymoo_gui/viz/metric_trajectories.py`
 
-- `MetricTrajectoriesWidget.__init__(self, parent=None) -> None` — metoda; [wiersz 29](../src/pymoo_gui/viz/metric_trajectories.py#L29).
-- `MetricTrajectoriesWidget.reset(self, algorithm_name: Optional[str]=None, problem_name: Optional[str]=None) -> None` — metoda; [wiersz 89](../src/pymoo_gui/viz/metric_trajectories.py#L89).
-- `MetricTrajectoriesWidget.append_payload(self, payload: Mapping[str, Any]) -> None` — metoda; [wiersz 111](../src/pymoo_gui/viz/metric_trajectories.py#L111).
-- `MetricTrajectoriesWidget.history(self) -> dict[str, list[tuple[int, float]]]` — metoda; [wiersz 137](../src/pymoo_gui/viz/metric_trajectories.py#L137).
+- `PlainDecimalAxisItem.tickStrings(self, values, scale, spacing)` — metoda; [wiersz 18](../src/pymoo_gui/viz/metric_trajectories.py#L18).
+- `MetricTrajectoriesWidget.__init__(self, parent=None) -> None` — metoda; [wiersz 46](../src/pymoo_gui/viz/metric_trajectories.py#L46).
+- `MetricTrajectoriesWidget.reset(self, algorithm_name: Optional[str]=None, problem_name: Optional[str]=None) -> None` — metoda; [wiersz 114](../src/pymoo_gui/viz/metric_trajectories.py#L114).
+- `MetricTrajectoriesWidget.is_metric_visible(self, metric_key: str) -> bool` — metoda; [wiersz 136](../src/pymoo_gui/viz/metric_trajectories.py#L136).
+- `MetricTrajectoriesWidget.append_payload(self, payload: Mapping[str, Any]) -> None` — metoda; [wiersz 140](../src/pymoo_gui/viz/metric_trajectories.py#L140).
+- `MetricTrajectoriesWidget.history(self) -> dict[str, list[tuple[int, float]]]` — metoda; [wiersz 168](../src/pymoo_gui/viz/metric_trajectories.py#L168).
 
 ### `src/pymoo_gui/viz/pareto_dialogs.py`
 
-- `_compute_stable_limits(ref_arr: Optional[np.ndarray], front_arr: Optional[np.ndarray], pop_arr: Optional[np.ndarray]) -> Optional[Tuple[np.ndarray, np.ndarray]]` — funkcja modułowa; [wiersz 27](../src/pymoo_gui/viz/pareto_dialogs.py#L27).
-- `PyQtGraphParetoDialog.__init__(self, ideal_front: np.ndarray, parent=None, axis_labels: Optional[Sequence[str]]=None, title: Optional[str]=None, point_label: str='Population', front_label: str='Nondominated solutions', ref_label: str='Reference PF')` — metoda; [wiersz 66](../src/pymoo_gui/viz/pareto_dialogs.py#L66).
-- `PyQtGraphParetoDialog.set_auto_scale(self, enabled: bool) -> None` — metoda; [wiersz 148](../src/pymoo_gui/viz/pareto_dialogs.py#L148).
-- `PyQtGraphParetoDialog.reset_view_limits(self) -> None` — metoda; [wiersz 152](../src/pymoo_gui/viz/pareto_dialogs.py#L152).
-- `PyQtGraphParetoDialog._reference_limits_signature(self, ref_arr: Optional[np.ndarray]) -> Optional[Tuple[int, float, float, float, float]]` — metoda; [wiersz 158](../src/pymoo_gui/viz/pareto_dialogs.py#L158).
-- `PyQtGraphParetoDialog._set_fixed_limits(self, mins: np.ndarray, maxs: np.ndarray) -> None` — metoda; [wiersz 170](../src/pymoo_gui/viz/pareto_dialogs.py#L170).
-- `PyQtGraphParetoDialog._apply_fixed_limits(self, ref_arr: Optional[np.ndarray], front_arr: Optional[np.ndarray], pop_arr: Optional[np.ndarray]) -> None` — metoda; [wiersz 179](../src/pymoo_gui/viz/pareto_dialogs.py#L179).
-- `PyQtGraphParetoDialog.get_axis_limits(self) -> Optional[Tuple[float, float, float, float]]` — metoda; [wiersz 204](../src/pymoo_gui/viz/pareto_dialogs.py#L204).
-- `PyQtGraphParetoDialog.update_points(self, pop_F: Optional[np.ndarray], front_F: Optional[np.ndarray], ref_F: Optional[np.ndarray], gen: Optional[int]=None) -> None` — metoda; [wiersz 214](../src/pymoo_gui/viz/pareto_dialogs.py#L214).
-- `PyQtGraphParetoDialog.update_points._finite_rows(data: Optional[np.ndarray]) -> Optional[np.ndarray]` — funkcja zagnieżdżona; [wiersz 222](../src/pymoo_gui/viz/pareto_dialogs.py#L222).
-- `PyQtGraphParetoDialog.update_points._as_2d(arr: Optional[np.ndarray]) -> Optional[np.ndarray]` — funkcja zagnieżdżona; [wiersz 229](../src/pymoo_gui/viz/pareto_dialogs.py#L229).
-- `MatplotlibParetoDialog.__init__(self, ideal_front: np.ndarray, parent=None, equal_aspect: bool=False, axis_labels: Optional[Sequence[str]]=None, title: Optional[str]=None, point_label: str='Population', front_label: str='Nondominated solutions', ref_label: str='Reference PF')` — metoda; [wiersz 269](../src/pymoo_gui/viz/pareto_dialogs.py#L269).
-- `MatplotlibParetoDialog._apply_equal_aspect(self) -> None` — metoda; [wiersz 357](../src/pymoo_gui/viz/pareto_dialogs.py#L357).
-- `MatplotlibParetoDialog.reset_view_limits(self) -> None` — metoda; [wiersz 364](../src/pymoo_gui/viz/pareto_dialogs.py#L364).
-- `MatplotlibParetoDialog.update_points(self, pop_F: Optional[np.ndarray], front_F: Optional[np.ndarray], ref_F: Optional[np.ndarray], gen: Optional[int]=None) -> None` — metoda; [wiersz 368](../src/pymoo_gui/viz/pareto_dialogs.py#L368).
-- `MatplotlibParetoDialog.update_points._finite_rows(data: Optional[np.ndarray]) -> Optional[np.ndarray]` — funkcja zagnieżdżona; [wiersz 376](../src/pymoo_gui/viz/pareto_dialogs.py#L376).
-- `MatplotlibParetoDialog.update_points._as_dim(arr: Optional[np.ndarray]) -> Optional[np.ndarray]` — funkcja zagnieżdżona; [wiersz 383](../src/pymoo_gui/viz/pareto_dialogs.py#L383).
-- `MatplotlibParetoDialog.set_auto_scale(self, enabled: bool) -> None` — metoda; [wiersz 484](../src/pymoo_gui/viz/pareto_dialogs.py#L484).
-- `MatplotlibParetoDialog.get_axis_limits(self) -> Optional[Tuple[float, ...]]` — metoda; [wiersz 488](../src/pymoo_gui/viz/pareto_dialogs.py#L488).
-- `OneDParetoDialog.__init__(self, ideal_front: np.ndarray, parent=None, axis_labels: Optional[Sequence[str]]=None, title: Optional[str]=None, point_label: str='Population', front_label: str='Nondominated solutions', ref_label: str='Reference PF')` — metoda; [wiersz 504](../src/pymoo_gui/viz/pareto_dialogs.py#L504).
-- `OneDParetoDialog.set_auto_scale(self, enabled: bool) -> None` — metoda; [wiersz 559](../src/pymoo_gui/viz/pareto_dialogs.py#L559).
-- `OneDParetoDialog.reset_view_limits(self) -> None` — metoda; [wiersz 563](../src/pymoo_gui/viz/pareto_dialogs.py#L563).
-- `OneDParetoDialog.get_axis_limits(self) -> Optional[Tuple[float, float, float, float]]` — metoda; [wiersz 567](../src/pymoo_gui/viz/pareto_dialogs.py#L567).
-- `OneDParetoDialog.update_points(self, pop_F: Optional[np.ndarray], front_F: Optional[np.ndarray], ref_F: Optional[np.ndarray], gen: Optional[int]=None) -> None` — metoda; [wiersz 576](../src/pymoo_gui/viz/pareto_dialogs.py#L576).
-- `OneDParetoDialog.update_points._finite_rows(data: Optional[np.ndarray]) -> Optional[np.ndarray]` — funkcja zagnieżdżona; [wiersz 584](../src/pymoo_gui/viz/pareto_dialogs.py#L584).
-- `OneDParetoDialog.update_points._as_1d(arr: Optional[np.ndarray]) -> Optional[np.ndarray]` — funkcja zagnieżdżona; [wiersz 591](../src/pymoo_gui/viz/pareto_dialogs.py#L591).
-- `UnifiedParetoDialog.__init__(self, ideal_front: np.ndarray, parent=None, equal_aspect: bool=False, objective_names: Optional[Sequence[str]]=None)` — metoda; [wiersz 689](../src/pymoo_gui/viz/pareto_dialogs.py#L689).
-- `UnifiedParetoDialog.show(self) -> None` — metoda; [wiersz 755](../src/pymoo_gui/viz/pareto_dialogs.py#L755).
-- `UnifiedParetoDialog.set_auto_scale(self, enabled: bool) -> None` — metoda; [wiersz 759](../src/pymoo_gui/viz/pareto_dialogs.py#L759).
-- `UnifiedParetoDialog.get_axis_limits(self) -> Optional[Tuple[float, ...]]` — metoda; [wiersz 764](../src/pymoo_gui/viz/pareto_dialogs.py#L764).
-- `UnifiedParetoDialog.update_points(self, pop_F: Optional[np.ndarray], front_F: Optional[np.ndarray], ref_F: Optional[np.ndarray], gen: Optional[int]=None) -> None` — metoda; [wiersz 770](../src/pymoo_gui/viz/pareto_dialogs.py#L770).
-- `UnifiedParetoDialog.update_points._reduce(arr: Optional[np.ndarray]) -> Optional[np.ndarray]` — funkcja zagnieżdżona; [wiersz 778](../src/pymoo_gui/viz/pareto_dialogs.py#L778).
-- `UnifiedParetoDialog.__getattr__(self, name)` — metoda; [wiersz 794](../src/pymoo_gui/viz/pareto_dialogs.py#L794).
-- `PyQtGraphParetoWidget.__init__(self, *args, **kwargs)` — metoda; [wiersz 802](../src/pymoo_gui/viz/pareto_dialogs.py#L802).
-- `MatplotlibParetoWidget.__init__(self, *args, **kwargs)` — metoda; [wiersz 811](../src/pymoo_gui/viz/pareto_dialogs.py#L811).
-- `OneDParetoWidget.__init__(self, *args, **kwargs)` — metoda; [wiersz 820](../src/pymoo_gui/viz/pareto_dialogs.py#L820).
-- `UnifiedParetoWidget.__init__(self, ideal_front: np.ndarray, parent=None, equal_aspect: bool=False, objective_names: Optional[Sequence[str]]=None)` — metoda; [wiersz 830](../src/pymoo_gui/viz/pareto_dialogs.py#L830).
-- `UnifiedParetoWidget.set_auto_scale(self, enabled: bool) -> None` — metoda; [wiersz 912](../src/pymoo_gui/viz/pareto_dialogs.py#L912).
-- `UnifiedParetoWidget.set_show_population(self, enabled: bool) -> None` — metoda; [wiersz 917](../src/pymoo_gui/viz/pareto_dialogs.py#L917).
-- `UnifiedParetoWidget.get_axis_limits(self) -> Optional[Tuple[float, ...]]` — metoda; [wiersz 925](../src/pymoo_gui/viz/pareto_dialogs.py#L925).
-- `UnifiedParetoWidget._reduce_points(self, arr: Optional[np.ndarray]) -> Optional[np.ndarray]` — metoda; [wiersz 931](../src/pymoo_gui/viz/pareto_dialogs.py#L931).
-- `UnifiedParetoWidget._snapshot_points(self, arr: Optional[np.ndarray]) -> Optional[np.ndarray]` — metoda; [wiersz 942](../src/pymoo_gui/viz/pareto_dialogs.py#L942).
-- `UnifiedParetoWidget._shape_of(self, arr: Optional[np.ndarray]) -> Optional[Tuple[int, ...]]` — metoda; [wiersz 954](../src/pymoo_gui/viz/pareto_dialogs.py#L954).
-- `UnifiedParetoWidget._render_points(self) -> None` — metoda; [wiersz 958](../src/pymoo_gui/viz/pareto_dialogs.py#L958).
-- `UnifiedParetoWidget.render_snapshot(self) -> dict` — metoda; [wiersz 970](../src/pymoo_gui/viz/pareto_dialogs.py#L970).
-- `UnifiedParetoWidget.update_points(self, pop_F: Optional[np.ndarray], front_F: Optional[np.ndarray], ref_F: Optional[np.ndarray], gen: Optional[int]=None) -> None` — metoda; [wiersz 980](../src/pymoo_gui/viz/pareto_dialogs.py#L980).
-- `UnifiedParetoWidget.__getattr__(self, name)` — metoda; [wiersz 994](../src/pymoo_gui/viz/pareto_dialogs.py#L994).
+- `_compute_stable_limits(ref_arr: Optional[np.ndarray], front_arr: Optional[np.ndarray], pop_arr: Optional[np.ndarray]) -> Optional[Tuple[np.ndarray, np.ndarray]]` — funkcja modułowa; [wiersz 30](../src/pymoo_gui/viz/pareto_dialogs.py#L30).
+- `_UniformLegendSample.paint(self, painter, *args)` — metoda; [wiersz 68](../src/pymoo_gui/viz/pareto_dialogs.py#L68).
+- `PyQtGraphParetoDialog.__init__(self, ideal_front: np.ndarray, parent=None, axis_labels: Optional[Sequence[str]]=None, title: Optional[str]=None, point_label: str='Population', front_label: str='Nondominated solutions', ref_label: str='Reference PF')` — metoda; [wiersz 80](../src/pymoo_gui/viz/pareto_dialogs.py#L80).
+- `PyQtGraphParetoDialog._set_plot_title(self, title: str) -> None` — metoda; [wiersz 170](../src/pymoo_gui/viz/pareto_dialogs.py#L170).
+- `PyQtGraphParetoDialog.set_grid(self, visible: bool, spacing: float=0.0) -> None` — metoda; [wiersz 177](../src/pymoo_gui/viz/pareto_dialogs.py#L177).
+- `PyQtGraphParetoDialog.export_png(self, path: str) -> None` — metoda; [wiersz 183](../src/pymoo_gui/viz/pareto_dialogs.py#L183).
+- `PyQtGraphParetoDialog.set_auto_scale(self, enabled: bool) -> None` — metoda; [wiersz 190](../src/pymoo_gui/viz/pareto_dialogs.py#L190).
+- `PyQtGraphParetoDialog.reset_view_limits(self) -> None` — metoda; [wiersz 194](../src/pymoo_gui/viz/pareto_dialogs.py#L194).
+- `PyQtGraphParetoDialog._reference_limits_signature(self, ref_arr: Optional[np.ndarray]) -> Optional[Tuple[int, float, float, float, float]]` — metoda; [wiersz 200](../src/pymoo_gui/viz/pareto_dialogs.py#L200).
+- `PyQtGraphParetoDialog._set_fixed_limits(self, mins: np.ndarray, maxs: np.ndarray) -> None` — metoda; [wiersz 212](../src/pymoo_gui/viz/pareto_dialogs.py#L212).
+- `PyQtGraphParetoDialog._apply_fixed_limits(self, ref_arr: Optional[np.ndarray], front_arr: Optional[np.ndarray], pop_arr: Optional[np.ndarray]) -> None` — metoda; [wiersz 221](../src/pymoo_gui/viz/pareto_dialogs.py#L221).
+- `PyQtGraphParetoDialog.get_axis_limits(self) -> Optional[Tuple[float, float, float, float]]` — metoda; [wiersz 246](../src/pymoo_gui/viz/pareto_dialogs.py#L246).
+- `PyQtGraphParetoDialog.update_points(self, pop_F: Optional[np.ndarray], front_F: Optional[np.ndarray], ref_F: Optional[np.ndarray], gen: Optional[int]=None) -> None` — metoda; [wiersz 256](../src/pymoo_gui/viz/pareto_dialogs.py#L256).
+- `PyQtGraphParetoDialog.update_points._finite_rows(data: Optional[np.ndarray]) -> Optional[np.ndarray]` — funkcja zagnieżdżona; [wiersz 264](../src/pymoo_gui/viz/pareto_dialogs.py#L264).
+- `PyQtGraphParetoDialog.update_points._as_2d(arr: Optional[np.ndarray]) -> Optional[np.ndarray]` — funkcja zagnieżdżona; [wiersz 271](../src/pymoo_gui/viz/pareto_dialogs.py#L271).
+- `_MatplotlibPlotControls._add_legend(self) -> None` — metoda; [wiersz 309](../src/pymoo_gui/viz/pareto_dialogs.py#L309).
+- `_MatplotlibPlotControls._style_axes(self) -> None` — metoda; [wiersz 322](../src/pymoo_gui/viz/pareto_dialogs.py#L322).
+- `_MatplotlibPlotControls._plot_axes(self)` — metoda; [wiersz 332](../src/pymoo_gui/viz/pareto_dialogs.py#L332).
+- `_MatplotlibPlotControls.set_grid(self, visible: bool, spacing: float=0.0) -> None` — metoda; [wiersz 338](../src/pymoo_gui/viz/pareto_dialogs.py#L338).
+- `_MatplotlibPlotControls.export_png(self, path: str) -> None` — metoda; [wiersz 344](../src/pymoo_gui/viz/pareto_dialogs.py#L344).
+- `MatplotlibParetoDialog.__init__(self, ideal_front: np.ndarray, parent=None, equal_aspect: bool=False, axis_labels: Optional[Sequence[str]]=None, title: Optional[str]=None, point_label: str='Population', front_label: str='Nondominated solutions', ref_label: str='Reference PF')` — metoda; [wiersz 351](../src/pymoo_gui/viz/pareto_dialogs.py#L351).
+- `MatplotlibParetoDialog._apply_equal_aspect(self) -> None` — metoda; [wiersz 441](../src/pymoo_gui/viz/pareto_dialogs.py#L441).
+- `MatplotlibParetoDialog.reset_view_limits(self) -> None` — metoda; [wiersz 448](../src/pymoo_gui/viz/pareto_dialogs.py#L448).
+- `MatplotlibParetoDialog.update_points(self, pop_F: Optional[np.ndarray], front_F: Optional[np.ndarray], ref_F: Optional[np.ndarray], gen: Optional[int]=None) -> None` — metoda; [wiersz 452](../src/pymoo_gui/viz/pareto_dialogs.py#L452).
+- `MatplotlibParetoDialog.update_points._finite_rows(data: Optional[np.ndarray]) -> Optional[np.ndarray]` — funkcja zagnieżdżona; [wiersz 460](../src/pymoo_gui/viz/pareto_dialogs.py#L460).
+- `MatplotlibParetoDialog.update_points._as_dim(arr: Optional[np.ndarray]) -> Optional[np.ndarray]` — funkcja zagnieżdżona; [wiersz 467](../src/pymoo_gui/viz/pareto_dialogs.py#L467).
+- `MatplotlibParetoDialog.set_auto_scale(self, enabled: bool) -> None` — metoda; [wiersz 568](../src/pymoo_gui/viz/pareto_dialogs.py#L568).
+- `MatplotlibParetoDialog.get_axis_limits(self) -> Optional[Tuple[float, ...]]` — metoda; [wiersz 572](../src/pymoo_gui/viz/pareto_dialogs.py#L572).
+- `OneDParetoDialog.__init__(self, ideal_front: np.ndarray, parent=None, axis_labels: Optional[Sequence[str]]=None, title: Optional[str]=None, point_label: str='Population', front_label: str='Nondominated solutions', ref_label: str='Reference PF')` — metoda; [wiersz 588](../src/pymoo_gui/viz/pareto_dialogs.py#L588).
+- `OneDParetoDialog.set_auto_scale(self, enabled: bool) -> None` — metoda; [wiersz 644](../src/pymoo_gui/viz/pareto_dialogs.py#L644).
+- `OneDParetoDialog.reset_view_limits(self) -> None` — metoda; [wiersz 648](../src/pymoo_gui/viz/pareto_dialogs.py#L648).
+- `OneDParetoDialog.get_axis_limits(self) -> Optional[Tuple[float, float, float, float]]` — metoda; [wiersz 652](../src/pymoo_gui/viz/pareto_dialogs.py#L652).
+- `OneDParetoDialog.update_points(self, pop_F: Optional[np.ndarray], front_F: Optional[np.ndarray], ref_F: Optional[np.ndarray], gen: Optional[int]=None) -> None` — metoda; [wiersz 661](../src/pymoo_gui/viz/pareto_dialogs.py#L661).
+- `OneDParetoDialog.update_points._finite_rows(data: Optional[np.ndarray]) -> Optional[np.ndarray]` — funkcja zagnieżdżona; [wiersz 669](../src/pymoo_gui/viz/pareto_dialogs.py#L669).
+- `OneDParetoDialog.update_points._as_1d(arr: Optional[np.ndarray]) -> Optional[np.ndarray]` — funkcja zagnieżdżona; [wiersz 676](../src/pymoo_gui/viz/pareto_dialogs.py#L676).
+- `UnifiedParetoDialog.__init__(self, ideal_front: np.ndarray, parent=None, equal_aspect: bool=False, objective_names: Optional[Sequence[str]]=None)` — metoda; [wiersz 774](../src/pymoo_gui/viz/pareto_dialogs.py#L774).
+- `UnifiedParetoDialog.show(self) -> None` — metoda; [wiersz 840](../src/pymoo_gui/viz/pareto_dialogs.py#L840).
+- `UnifiedParetoDialog.set_auto_scale(self, enabled: bool) -> None` — metoda; [wiersz 844](../src/pymoo_gui/viz/pareto_dialogs.py#L844).
+- `UnifiedParetoDialog.get_axis_limits(self) -> Optional[Tuple[float, ...]]` — metoda; [wiersz 849](../src/pymoo_gui/viz/pareto_dialogs.py#L849).
+- `UnifiedParetoDialog.update_points(self, pop_F: Optional[np.ndarray], front_F: Optional[np.ndarray], ref_F: Optional[np.ndarray], gen: Optional[int]=None) -> None` — metoda; [wiersz 855](../src/pymoo_gui/viz/pareto_dialogs.py#L855).
+- `UnifiedParetoDialog.update_points._reduce(arr: Optional[np.ndarray]) -> Optional[np.ndarray]` — funkcja zagnieżdżona; [wiersz 863](../src/pymoo_gui/viz/pareto_dialogs.py#L863).
+- `UnifiedParetoDialog.__getattr__(self, name)` — metoda; [wiersz 879](../src/pymoo_gui/viz/pareto_dialogs.py#L879).
+- `PyQtGraphParetoWidget.__init__(self, *args, **kwargs)` — metoda; [wiersz 887](../src/pymoo_gui/viz/pareto_dialogs.py#L887).
+- `MatplotlibParetoWidget.__init__(self, *args, **kwargs)` — metoda; [wiersz 896](../src/pymoo_gui/viz/pareto_dialogs.py#L896).
+- `OneDParetoWidget.__init__(self, *args, **kwargs)` — metoda; [wiersz 905](../src/pymoo_gui/viz/pareto_dialogs.py#L905).
+- `UnifiedParetoWidget.__init__(self, ideal_front: np.ndarray, parent=None, equal_aspect: bool=False, objective_names: Optional[Sequence[str]]=None)` — metoda; [wiersz 915](../src/pymoo_gui/viz/pareto_dialogs.py#L915).
+- `UnifiedParetoWidget.set_auto_scale(self, enabled: bool) -> None` — metoda; [wiersz 997](../src/pymoo_gui/viz/pareto_dialogs.py#L997).
+- `UnifiedParetoWidget.set_show_population(self, enabled: bool) -> None` — metoda; [wiersz 1002](../src/pymoo_gui/viz/pareto_dialogs.py#L1002).
+- `UnifiedParetoWidget.get_axis_limits(self) -> Optional[Tuple[float, ...]]` — metoda; [wiersz 1010](../src/pymoo_gui/viz/pareto_dialogs.py#L1010).
+- `UnifiedParetoWidget._reduce_points(self, arr: Optional[np.ndarray]) -> Optional[np.ndarray]` — metoda; [wiersz 1016](../src/pymoo_gui/viz/pareto_dialogs.py#L1016).
+- `UnifiedParetoWidget._snapshot_points(self, arr: Optional[np.ndarray]) -> Optional[np.ndarray]` — metoda; [wiersz 1027](../src/pymoo_gui/viz/pareto_dialogs.py#L1027).
+- `UnifiedParetoWidget._shape_of(self, arr: Optional[np.ndarray]) -> Optional[Tuple[int, ...]]` — metoda; [wiersz 1039](../src/pymoo_gui/viz/pareto_dialogs.py#L1039).
+- `UnifiedParetoWidget._render_points(self) -> None` — metoda; [wiersz 1043](../src/pymoo_gui/viz/pareto_dialogs.py#L1043).
+- `UnifiedParetoWidget.render_snapshot(self) -> dict` — metoda; [wiersz 1055](../src/pymoo_gui/viz/pareto_dialogs.py#L1055).
+- `UnifiedParetoWidget.update_points(self, pop_F: Optional[np.ndarray], front_F: Optional[np.ndarray], ref_F: Optional[np.ndarray], gen: Optional[int]=None) -> None` — metoda; [wiersz 1065](../src/pymoo_gui/viz/pareto_dialogs.py#L1065).
+- `UnifiedParetoWidget.__getattr__(self, name)` — metoda; [wiersz 1079](../src/pymoo_gui/viz/pareto_dialogs.py#L1079).
 
-## Anonimowe funkcje `lambda`
+### `tests/conftest.py`
 
-Anonimowe funkcje obejmują fabryki problemów wpisane do `PROBLEMS` oraz krótkie procedury obsługi przycisków GUI.
-
-- `lambda ` — [wiersz 779](../src/pymoo_gui/app.py#L779).
-- `lambda ` — [wiersz 780](../src/pymoo_gui/app.py#L780).
-- `lambda _problem, pf_name=filename, n_obj=expected_n_obj` — [wiersz 112](../src/pymoo_gui/problems/registry.py#L112).
-- `lambda n_var=default_n_var, problem_name=name` — [wiersz 221](../src/pymoo_gui/problems/registry.py#L221).
-- `lambda n_var=default_n_var, n_obj=default_n_obj, problem_name=name` — [wiersz 236](../src/pymoo_gui/problems/registry.py#L236).
-- `lambda n_var=default_n_var, p_name=problem_name, objective_count=n_obj` — [wiersz 285](../src/pymoo_gui/problems/registry.py#L285).
-- `lambda n_var=3` — [wiersz 336](../src/pymoo_gui/problems/registry.py#L336).
-- `lambda n_var=10` — [wiersz 369](../src/pymoo_gui/problems/registry.py#L369).
-- `lambda n_var=30` — [wiersz 376](../src/pymoo_gui/problems/registry.py#L376).
-- `lambda n_var=30` — [wiersz 383](../src/pymoo_gui/problems/registry.py#L383).
-- `lambda n_var=30` — [wiersz 390](../src/pymoo_gui/problems/registry.py#L390).
-- `lambda n_var=30` — [wiersz 397](../src/pymoo_gui/problems/registry.py#L397).
-- `lambda n_var=10` — [wiersz 404](../src/pymoo_gui/problems/registry.py#L404).
-- `lambda n_var=10` — [wiersz 411](../src/pymoo_gui/problems/registry.py#L411).
-- `lambda n_var=10` — [wiersz 418](../src/pymoo_gui/problems/registry.py#L418).
-- `lambda n_var=30` — [wiersz 425](../src/pymoo_gui/problems/registry.py#L425).
-- `lambda n_var=30` — [wiersz 430](../src/pymoo_gui/problems/registry.py#L430).
-- `lambda n_var=30` — [wiersz 431](../src/pymoo_gui/problems/registry.py#L431).
-- `lambda n_var=30` — [wiersz 432](../src/pymoo_gui/problems/registry.py#L432).
-- `lambda n_var=30` — [wiersz 433](../src/pymoo_gui/problems/registry.py#L433).
-- `lambda n_var=30` — [wiersz 434](../src/pymoo_gui/problems/registry.py#L434).
-- `lambda n_var=30` — [wiersz 435](../src/pymoo_gui/problems/registry.py#L435).
-- `lambda n_var=30` — [wiersz 436](../src/pymoo_gui/problems/registry.py#L436).
-- `lambda n_var=30` — [wiersz 437](../src/pymoo_gui/problems/registry.py#L437).
-- `lambda n_var=30` — [wiersz 438](../src/pymoo_gui/problems/registry.py#L438).
-- `lambda n_var=30` — [wiersz 439](../src/pymoo_gui/problems/registry.py#L439).
-
-## Funkcje testowe
+Brak deklaracji funkcji i wyrażeń `lambda`.
 
 ### `tests/test_custom_algorithm_runtime.py`
 
 - `test_ibea_runtime_on_schaffer() -> None` — funkcja modułowa; [wiersz 9](../tests/test_custom_algorithm_runtime.py#L9).
 - `test_gde3_runtime_on_schaffer() -> None` — funkcja modułowa; [wiersz 22](../tests/test_custom_algorithm_runtime.py#L22).
+
+### `tests/test_delta.py`
+
+- `test_classical_delta_keeps_endpoint_and_spacing_penalties() -> None` — funkcja modułowa; [wiersz 13](../tests/test_delta.py#L13).
+- `test_generalized_delta_penalizes_missing_extremes(n_obj: int) -> None` — funkcja modułowa; [wiersz 26](../tests/test_delta.py#L26).
+- `test_generalized_delta_measures_nonuniform_spacing() -> None` — funkcja modułowa; [wiersz 34](../tests/test_delta.py#L34).
+- `test_delta_requires_valid_reference_and_enough_feasible_points(n_obj: int) -> None` — funkcja modułowa; [wiersz 46](../tests/test_delta.py#L46).
+- `test_generation_callback_computes_delta_for_every_algorithm(algorithm_key, n_obj: int) -> None` — funkcja modułowa; [wiersz 60](../tests/test_delta.py#L60).
 
 ### `tests/test_dtlz_pareto_fronts.py`
 
@@ -828,15 +909,24 @@ Anonimowe funkcje obejmują fabryki problemów wpisane do `PROBLEMS` oraz krótk
 - `test_empty_benchmark_template_validates_configuration() -> None` — funkcja modułowa; [wiersz 27](../tests/test_empty_benchmark_template.py#L27).
 - `test_empty_benchmark_template_exposes_registration_contract() -> None` — funkcja modułowa; [wiersz 36](../tests/test_empty_benchmark_template.py#L36).
 
+### `tests/test_kktpm.py`
+
+- `test_kktpm_includes_variable_bounds_for_zdt1_pareto_points() -> None` — funkcja modułowa; [wiersz 12](../tests/test_kktpm.py#L12).
+- `test_kktpm_does_not_duplicate_preconverted_bound_constraints() -> None` — funkcja modułowa; [wiersz 27](../tests/test_kktpm.py#L27).
+- `test_kktpm_preserves_problem_constraints_when_adding_bounds() -> None` — funkcja modułowa; [wiersz 40](../tests/test_kktpm.py#L40).
+- `test_default_numerical_step_is_stable_near_zdt1_endpoint() -> None` — funkcja modułowa; [wiersz 53](../tests/test_kktpm.py#L53).
+
 ### `tests/test_lmoea_ds_runtime.py`
 
 - `test_lmoea_ds_runtime_on_schaffer() -> None` — funkcja modułowa; [wiersz 8](../tests/test_lmoea_ds_runtime.py#L8).
 
 ### `tests/test_metric_trajectories.py`
 
-- `test_metric_trajectories_store_finite_generation_values() -> None` — funkcja modułowa; [wiersz 16](../tests/test_metric_trajectories.py#L16).
-- `test_main_run_updates_and_resets_metric_trajectories() -> None` — funkcja modułowa; [wiersz 38](../tests/test_metric_trajectories.py#L38).
-- `test_clear_button_clears_console_and_visual_charts() -> None` — funkcja modułowa; [wiersz 73](../tests/test_metric_trajectories.py#L73).
+- `test_metric_trajectories_store_finite_generation_values() -> None` — funkcja modułowa; [wiersz 17](../tests/test_metric_trajectories.py#L17).
+- `test_spread_delta_and_kktpm_axes_show_unscaled_decimal_values() -> None` — funkcja modułowa; [wiersz 40](../tests/test_metric_trajectories.py#L40).
+- `test_main_run_updates_and_resets_metric_trajectories() -> None` — funkcja modułowa; [wiersz 54](../tests/test_metric_trajectories.py#L54).
+- `test_delta_trajectory_is_visible_and_updates_for_every_algorithm() -> None` — funkcja modułowa; [wiersz 98](../tests/test_metric_trajectories.py#L98).
+- `test_clear_button_clears_console_and_visual_charts() -> None` — funkcja modułowa; [wiersz 119](../tests/test_metric_trajectories.py#L119).
 
 ### `tests/test_multi.py`
 
@@ -857,11 +947,41 @@ Anonimowe funkcje obejmują fabryki problemów wpisane do `PROBLEMS` oraz krótk
 
 - `test_pareto_reference_layer_label_does_not_use_known() -> None` — funkcja modułowa; [wiersz 16](../tests/test_pareto_labels.py#L16).
 
+### `tests/test_plot_controls.py`
+
+- `app()` — funkcja modułowa; [wiersz 22](../tests/test_plot_controls.py#L22).
+- `wait_until(app, predicate, timeout=10)` — funkcja modułowa; [wiersz 26](../tests/test_plot_controls.py#L26).
+- `make_worker(*, step_mode=False, n_gen=3)` — funkcja modułowa; [wiersz 35](../tests/test_plot_controls.py#L35).
+- `test_steps_match_continuous_run_and_do_not_advance_while_paused(app)` — funkcja modułowa; [wiersz 42](../tests/test_plot_controls.py#L42).
+- `test_stop_wakes_unlimited_worker_paused_after_epoch_one(app)` — funkcja modułowa; [wiersz 72](../tests/test_plot_controls.py#L72).
+- `test_browse_epochs_preserves_snapshots_and_keeps_metrics_history(app)` — funkcja modułowa; [wiersz 89](../tests/test_plot_controls.py#L89).
+- `test_grid_and_complete_png_export_preserve_current_view(app, tmp_path, dim)` — funkcja modułowa; [wiersz 116](../tests/test_plot_controls.py#L116).
+- `test_step_button_advances_from_history_and_stop_exports(app, tmp_path, monkeypatch)` — funkcja modułowa; [wiersz 159](../tests/test_plot_controls.py#L159).
+- `test_closing_window_wakes_paused_worker(app, tmp_path, monkeypatch)` — funkcja modułowa; [wiersz 188](../tests/test_plot_controls.py#L188).
+- `test_default_window_is_square_and_console_is_shallow(app)` — funkcja modułowa; [wiersz 208](../tests/test_plot_controls.py#L208).
+- `lambda` — wyrażenie anonimowe; [wiersz 55](../tests/test_plot_controls.py#L55).
+- `lambda` — wyrażenie anonimowe; [wiersz 61](../tests/test_plot_controls.py#L61).
+- `lambda` — wyrażenie anonimowe; [wiersz 79](../tests/test_plot_controls.py#L79).
+- `lambda` — wyrażenie anonimowe; [wiersz 81](../tests/test_plot_controls.py#L81).
+- `lambda` — wyrażenie anonimowe; [wiersz 160](../tests/test_plot_controls.py#L160).
+- `lambda` — wyrażenie anonimowe; [wiersz 169](../tests/test_plot_controls.py#L169).
+- `lambda` — wyrażenie anonimowe; [wiersz 171](../tests/test_plot_controls.py#L171).
+- `lambda` — wyrażenie anonimowe; [wiersz 174](../tests/test_plot_controls.py#L174).
+- `lambda` — wyrażenie anonimowe; [wiersz 176](../tests/test_plot_controls.py#L176).
+- `lambda` — wyrażenie anonimowe; [wiersz 189](../tests/test_plot_controls.py#L189).
+- `lambda` — wyrażenie anonimowe; [wiersz 197](../tests/test_plot_controls.py#L197).
+- `lambda` — wyrażenie anonimowe; [wiersz 199](../tests/test_plot_controls.py#L199).
+
 ### `tests/test_registry_integrity.py`
 
 - `test_algorithm_registry_has_required_structure() -> None` — funkcja modułowa; [wiersz 7](../tests/test_registry_integrity.py#L7).
 - `test_problem_registry_has_required_structure() -> None` — funkcja modułowa; [wiersz 16](../tests/test_registry_integrity.py#L16).
 
-## Jak aktualizować katalog
+### `tests/test_runtime_paths.py`
 
-Po dodaniu lub usunięciu funkcji należy ponownie przeskanować `run_gui.py`, `src/**/*.py` i `tests/**/*.py`. Kontrolne liczby z tego dokumentu powinny zgadzać się z liczbą węzłów `ast.FunctionDef`, `ast.AsyncFunctionDef` i `ast.Lambda` w tych plikach.
+- `test_source_results_stay_in_project(monkeypatch)` — funkcja modułowa; [wiersz 7](../tests/test_runtime_paths.py#L7).
+- `test_frozen_results_survive_bundle_cleanup(monkeypatch, tmp_path)` — funkcja modułowa; [wiersz 12](../tests/test_runtime_paths.py#L12).
+
+### `tests/test_version.py`
+
+- `test_public_version_and_window_title() -> None` — funkcja modułowa; [wiersz 7](../tests/test_version.py#L7).

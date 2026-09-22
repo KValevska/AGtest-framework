@@ -1,4 +1,4 @@
-# AGtest-framework
+# AGtest-framework v0.1
 
 [DOI: 10.5281/zenodo.22863482](https://doi.org/10.5281/zenodo.22863482)
 
@@ -20,7 +20,7 @@ The **Source code (zip)** and **Source code (tar.gz)** downloads contain the
 source code, not the ready-to-run application. If no EXE release is listed yet,
 use the [build instructions below](#standalone-windows-exe-no-python-needed).
 
-![AGtest-framework main window](figures/gui-main-window-kursawe-nsga3.png)
+![AGtest-framework v0.1 main window with epoch controls and metric tabs](figures/gui-main-window-tanaka-rvea-v0.1.png)
 
 The rest of this README covers installation from source, experiment workflows,
 and extending the framework. Maintainers can follow the
@@ -35,6 +35,8 @@ and extending the framework. Maintainers can follow the
 - export of metric history and nondominated solutions to `.xlsx` workbooks
 - optional parallel objective evaluation for expensive problems
 - `RAN` mode for runs without a GUI-imposed generation limit
+- `RAN step` button to compute one epoch per click, with previous/next and direct epoch selection
+- switchable plot grid with an editable interval, larger axis text and nondominated points, and PNG export
 - `Multi` tab for finite Cartesian experiments across multiple algorithms and problems without plot rendering
 - `Metric trajectories` tab with one generation/value chart per metric for the current single experiment
 
@@ -138,6 +140,23 @@ AGtest-framework
 This workflow allows the user to run a complete multi-objective optimization
 experiment without writing a separate execution script.
 
+Above the Pareto plot, **RAN step** starts an unlimited run and pauses after epoch 1.
+Click **Next epoch** to compute each subsequent epoch, or **Stop** to finish and save
+the run. The arrow buttons and **Epoch** field browse already computed epochs;
+**Latest** returns to the newest result. Epoch history is available for both normal
+and stepped runs until the next run, problem change, or **Clear**.
+
+Use **Show grid** to toggle grid lines and **Grid interval** to enter their spacing
+in objective units (for example 1, 2, 3, or 0.5). A value of zero restores **Auto**.
+**Export PNG** saves the currently displayed epoch, including the plot border,
+axis labels and numbers, legend, and current axis ranges. It also preserves the
+grid setting, visible layers, and the viewing angle of a 3D plot.
+
+The small **Screenshot** button in the top-right corner saves the entire current
+application window as PNG, including the active tab, settings, tables, and visible console.
+The main window starts with square proportions and a compact bottom console. Spread,
+Delta, and KKTPM trajectory axes display complete decimal values without SI scaling.
+
 ## Multi experiments
 
 The `Multi` tab runs every selected algorithm against every selected problem.
@@ -200,6 +219,8 @@ trajectories, while Multi experiments never modify them.
 - `src/pymoo_gui/parallel.py`: optional parallel evaluation wrapper for expensive problem evaluations.
 - `tests`: registry and runtime smoke tests.
 - `docs/FUNCTION_CATALOG.md`: complete function, method, nested-function, and lambda inventory with source links.
+- `docs/AGtest_framework_analysis_PL.pdf`: current Polish technical and functional analysis for v0.1.
+- `docs/AGtest_framework_analysis_PL.html`: editable source used to regenerate that PDF.
 
 ## Architecture overview
 
@@ -603,7 +624,7 @@ Important behavior:
 
 - `HV` requires a valid reference point
 - `GD`, `IGD`, `GD+`, and `IGD+` require a known Pareto front
-- `Delta` is only enabled in the callback path where it is meaningful
+- `Delta` is computed for every algorithm in single and batch runs and its generation chart is always visible. It uses classical Delta for two objectives and [generalized spread](https://jmetal.sourceforge.net/javadoc/jmetal/qualityIndicator/GeneralizedSpread.html) for more objectives, with Euclidean distances in the original objective coordinates. A matching reference Pareto front and at least two finite feasible nondominated solutions are required; otherwise the value is `N/A`.
 - `KKTPM` requires decision vectors and a compatible problem definition; finite variable bounds are included as KKT inequality constraints
 - the generation-level `KKTPM` value is the arithmetic mean over finite values for the current feasible nondominated set
 

@@ -8,4 +8,6 @@
 # Author: Kristina Valevska, MSc Eng.
 # ------------------------------------------------------------------------------------
 
+__version__ = "0.1"
+
 __all__ = ["algorithms", "app", "metrics", "parallel", "problems", "viz"]

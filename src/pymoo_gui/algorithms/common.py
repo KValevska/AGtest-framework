@@ -277,7 +277,7 @@ def make_generation_callback(
     # problem (Any): Problem associated with the optimization run.
     # hv_ref_point (Optional[list[float]]): Hypervolume reference point.
     # known_pf (Optional[np.ndarray]): Precomputed known Pareto front.
-    # algorithm_key (Optional[str]): Registry key used for algorithm-specific metric rules.
+    # algorithm_key (Optional[str]): Algorithm registry key; Delta supports every algorithm.
     # Returns:
     # Callback: pymoo callback object ready for `minimize`.
     static_diagnostics: list[str] = []
