@@ -1,6 +1,6 @@
 # AGtest-framework v0.1
 
-[DOI: 10.5281/zenodo.22863482](https://doi.org/10.5281/zenodo.22863482)
+[DOI: 10.5281/zenodo.22863482](https://doi.org/10.5281/zenodo.22872991)
 
 Desktop framework for configuring, running, visualizing, and exporting
 multi-objective optimization experiments based on `pymoo`.
