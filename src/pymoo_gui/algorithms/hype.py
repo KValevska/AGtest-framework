@@ -1,9 +1,12 @@
-# HypE hypervolume-estimation operators, pymoo algorithm class and GUI factory.
+# Standalone HypE implementation.
+# Provenance: AGtest-framework standalone implementation; not imported from pymoo or Platypus.
 
 # ------------------------------------------------------------------------------------
 # Module: hype.py
-# Summary: HypE fitness routines, selection operators, survival class, algorithm class and GUI factory.
-# Implementation: hypervolume-estimation fitness is computed and used for mating, survival and full HypE runs.
+# Article: J. Bader, E. Zitzler, "HypE: An Algorithm for Fast Hypervolume-Based
+#          Many-Objective Optimization", Evolutionary Computation, 2011.
+# DOI: 10.1162/EVCO_A_00009
+# Implementation: own Python/NumPy implementation based on the article.
 # Responsibility: implements a hypervolume-based optimizer for doctoral-dissertation comparisons.
 # Author: Kristina Valevska, MSc Eng.
 # ------------------------------------------------------------------------------------
@@ -14,14 +17,7 @@ import ast
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
 import numpy as np
-from pymoo.algorithms.base.genetic import GeneticAlgorithm
-from pymoo.core.survival import Survival
-from pymoo.operators.crossover.sbx import SBX
-from pymoo.operators.mutation.pm import PM
-from pymoo.operators.sampling.rnd import FloatRandomSampling
-from pymoo.operators.selection.tournament import TournamentSelection
-from pymoo.termination.default import DefaultMultiObjectiveTermination
-from pymoo.util.display.multi import MultiObjectiveOutput
+from .research_common import PopulationState, ResearchMOOAlgorithm, assign_rank_and_crowding, feasible_mask
 
 
 ObjectiveFn = Callable[[Sequence[float]], float]
@@ -79,7 +75,9 @@ def _auto_reference_point(problem: Any, n_obj: int) -> np.ndarray:
     if callable(nadir_fn):
         try:
             nadir = np.asarray(nadir_fn(), dtype=float).reshape(-1)
-        except (TypeError, ValueError, AttributeError):
+        except Exception:
+            # Some pymoo problems fetch their Pareto front remotely; optimization must
+            # remain usable offline, so fall back to a deterministic local reference.
             nadir = None
         if nadir is not None and nadir.size == n_obj and np.isfinite(nadir).all():
             margin = 0.1 * np.maximum(1.0, np.abs(nadir))
@@ -460,13 +458,12 @@ def hype_tournament(pop, P, random_state=None, **kwargs):
     return selected[:, None].astype(int, copy=False)
 
 
-class HypESurvival(Survival):
-    # pymoo survival operator that truncates a population with HypE fitness.
-    # wedlug frontow Pareto i oceny HypE.
+class HypESurvival:
+    # Standalone survival operator that truncates a population with HypE fitness.
+    # It uses Pareto fronts and HypE contribution estimates.
 
     def __init__(self, reference_point: Any = "auto", reference_set: Any = None, n_samples: int = 1000):
         # Configure reference data and Monte Carlo sample count for HypE survival.
-        super().__init__(filter_infeasible=True)
         self.reference_point = reference_point
         self.reference_set = reference_set
         self.n_samples = _parse_positive_int(n_samples, "n_samples")
@@ -501,8 +498,8 @@ class HypESurvival(Survival):
         return pop[np.asarray(keep, dtype=int)]
 
 
-class HypE(GeneticAlgorithm):
-    # pymoo genetic algorithm using HypE survival and tournament selection.
+class HypE(ResearchMOOAlgorithm):
+    # Standalone genetic algorithm using HypE mating and environmental selection.
 
     def __init__(
         self,
@@ -510,33 +507,50 @@ class HypE(GeneticAlgorithm):
         reference_point: Any = "auto",
         reference_set: Any = None,
         n_samples: int = 1000,
-        sampling=FloatRandomSampling(),
-        selection=TournamentSelection(func_comp=hype_tournament),
-        crossover=SBX(eta=15, prob=0.9),
-        mutation=PM(eta=20),
-        output=MultiObjectiveOutput(),
         **kwargs,
     ):
         # Initialize HypE with sampling, variation operators and hypervolume reference data.
         self.reference_point = reference_point
         self.reference_set = reference_set
         self.n_samples = _parse_positive_int(n_samples, "n_samples")
-        super().__init__(
-            pop_size=_parse_positive_int(pop_size, "pop_size"),
-            sampling=sampling,
-            selection=selection,
-            crossover=crossover,
-            mutation=mutation,
-            survival=HypESurvival(reference_point, reference_set, self.n_samples),
-            output=output,
-            advance_after_initial_infill=True,
-            **kwargs,
-        )
-        self.termination = DefaultMultiObjectiveTermination()
+        size = _parse_positive_int(pop_size, "pop_size")
+        super().__init__(population_size=size, archive_size=size, **kwargs)
 
     def reference_values(self, n_obj: int) -> np.ndarray:
         # Return validated reference values for the current problem and objective count.
         return _reference_values(n_obj, getattr(self, "problem", None), self.reference_point, self.reference_set)
+
+    def select(self) -> np.ndarray:
+        assert self.state is not None
+        fitness = hype_fitness(
+            self.state.F, self.reference_values(self.n_obj), self.population_size,
+            self.n_samples, self.random_state,
+        )
+        pairs = np.empty((self.population_size, 2), dtype=int)
+        for row in range(self.population_size):
+            for parent in range(2):
+                a, b = self.random_state.integers(0, self.population_size, size=2)
+                pairs[row, parent] = a if fitness[a] >= fitness[b] else b
+        return pairs
+
+    def environmental_selection(self, X, F, CV, n_survive):
+        feasible = np.flatnonzero(feasible_mask(CV))
+        chosen: list[int] = []
+        if feasible.size:
+            matrix = np.hstack([X[feasible], F[feasible]])
+            kept = environmental_selection(
+                matrix, min(n_survive, feasible.size), F.shape[1],
+                self.reference_values(F.shape[1]), self.n_samples, self.random_state,
+            )
+            for row in kept:
+                distances = np.linalg.norm(X[feasible] - row[: X.shape[1]], axis=1)
+                chosen.append(int(feasible[np.argmin(distances)]))
+        if len(chosen) < n_survive:
+            remaining = [int(i) for i in np.argsort(CV) if int(i) not in chosen]
+            chosen.extend(remaining[: n_survive - len(chosen)])
+        ids = np.asarray(chosen[:n_survive], dtype=int)
+        rank, crowding = assign_rank_and_crowding(F[ids], CV[ids])
+        return PopulationState(X[ids], F[ids], CV[ids], rank, crowding)
 
 
 def hype(
@@ -615,7 +629,7 @@ HYPE_DEFINITION: Dict[str, Any] = {
         "reference_set": {"default": None, "kind": "any"},
         "n_samples": {"default": 1000, "kind": "int", "minimum": 1},
     },
-    "form_note": "reference_point='auto' uzywa nadir_point problemu, a gdy go nie ma: [1.1, ..., 1.1].",
+    "form_note": "reference_point='auto' uses the problem nadir point or a local fallback.",
 }
 HYPE_DEFINITION["form_note"] = (
     "reference_point='auto' uses the problem nadir_point, or [1.1, ..., 1.1] when it is unavailable."

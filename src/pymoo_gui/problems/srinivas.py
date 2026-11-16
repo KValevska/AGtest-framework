@@ -1,4 +1,7 @@
 # Srinivas constrained benchmark problem implementation for pymoo.
+# Provenance: AGtest-framework standalone problem implementation; not imported from pymoo.
+# Basis publication: N. Srinivas and K. Deb, "Multiobjective Optimization Using
+# Nondominated Sorting in Genetic Algorithms," Evolutionary Computation 2(3), 1994.
 
 # ------------------------------------------------------------------------------------
 # Module: srinivas.py

@@ -1,4 +1,8 @@
 # ConstrEx constrained benchmark problem implementation for pymoo.
+# Provenance: AGtest-framework standalone problem implementation; not imported from pymoo.
+# Basis publication: K. Deb, "An Efficient Constraint Handling Method for Genetic
+# Algorithms," Computer Methods in Applied Mechanics and Engineering 186, 2000,
+# DOI: 10.1016/S0045-7825(99)00389-8.
 
 # ------------------------------------------------------------------------------------
 # Module: constrex.py

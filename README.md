@@ -53,6 +53,8 @@ Recommended environment:
   - `pyqtgraph`
   - `pymoo`
   - `platypus-opt`
+  - `scipy`
+  - `scikit-learn`
 
 ## Install
 
@@ -154,8 +156,9 @@ grid setting, visible layers, and the viewing angle of a 3D plot.
 
 The small **Screenshot** button in the top-right corner saves the entire current
 application window as PNG, including the active tab, settings, tables, and visible console.
-The main window starts with square proportions and a compact bottom console. Spread,
-Delta, and KKTPM trajectory axes display complete decimal values without SI scaling.
+The main window starts with square proportions and a compact bottom console. Pairwise
+objective-space spread, Delta, and KKTPM trajectory axes display complete
+decimal values without SI scaling.
 
 ## Multi experiments
 
@@ -183,9 +186,12 @@ trajectories, while Multi experiments never modify them.
 
 ### Algorithms
 
-- pymoo-based algorithms: `AGE-MOEA`, `Eps-MOEA`, `Eps-NSGA-II`, `GDE3`, `IBEA`, `LMOEA-DS`, `MOEAD`, `NSGA-II`, `NSGA-III`, `R-NSGA-III`, `RVEA`, `SPEA2`
-- framework-specific research implementations: `Learning-across-problems EDMO`, `RNN-guided DMO`, `TS-NSGA`
-- adapter-based integration: `MOEA/D (epsilon family)` via Platypus
+- core and established algorithms: `AGE-MOEA`, `Eps-MOEA`, `ε-NSGA-II`, `GDE3`, `IBEA`, `LMOEA-DS`, `MOEAD`, `NSGA-II`, `NSGA-III`, `R-NSGA-III`, `RVEA`, `SPEA2`
+- standalone surrogate-assisted algorithms: `PIEA`, `PIMD`, `TEA`, `SSDE`, `DISK`, `DISK+`, `PEA+`, `TSPP`, `MaO-TSP+`
+- standalone large-scale and micro-population algorithms: `DSSEA`, `muMaOEA`
+- standalone constrained algorithms: `CMOEA-CD`, `CMOBR`, `DVCEA`
+- standalone recent article implementations: `Learning-across-problems EDMO`, `TS-NSGA-II`
+- adapted article ports: `MOEA/D-IEpsilon`, `MOEA/D-RNN`
 - optional algorithm entry: `HypE`, when its import path is available at runtime
 
 ### Problem families
@@ -202,7 +208,7 @@ trajectories, while Multi experiments never modify them.
 - `IGD`
 - `GD+`
 - `IGD+`
-- `Spread`
+- `Pairwise objective-space spread`
 - `Delta`
 - `KKTPM`
 
@@ -219,6 +225,7 @@ trajectories, while Multi experiments never modify them.
 - `src/pymoo_gui/parallel.py`: optional parallel evaluation wrapper for expensive problem evaluations.
 - `tests`: registry and runtime smoke tests.
 - `docs/FUNCTION_CATALOG.md`: complete function, method, nested-function, and lambda inventory with source links.
+- `docs/RECENT_ALGORITHMS.md`: provenance, defaults, limitations, and verification scope for recent adapted ports.
 - `docs/AGtest_framework_analysis_PL.pdf`: current Polish technical and functional analysis for v0.1.
 - `docs/AGtest_framework_analysis_PL.html`: editable source used to regenerate that PDF.
 
@@ -616,15 +623,37 @@ Supported metrics include:
 - `IGD`
 - `GD+`
 - `IGD+`
-- `Spread`
+- `Pairwise objective-space spread`
 - `Delta`
 - `KKTPM`
 
 Important behavior:
 
-- `HV` requires a valid reference point
+- `HV` uses one configuration frozen before the run. When a reliable Pareto front is
+  available, its ideal and nadir points define a fixed normalization and `[1.1, ...,
+  1.1]` is used in normalized objective space. Auto mode is unavailable without a
+  reliable front; Main then requires a manual raw-space point and Multi reports HV as
+  `N/A`.
+- The HV configuration (mode, source, normalization, ideal, nadir, raw point and
+  effective point) is exported in the `HV Configuration` worksheet.
+- `HV` is larger-is-better for experiments using the same frozen normalization and
+  reference point. It measures dominated objective-space volume, so it jointly reflects
+  convergence towards a good region and coverage of that region, with some sensitivity
+  to solution diversity. It is not a pure measure of distribution uniformity.
 - `GD`, `IGD`, `GD+`, and `IGD+` require a known Pareto front
-- `Delta` is computed for every algorithm in single and batch runs and its generation chart is always visible. It uses classical Delta for two objectives and [generalized spread](https://jmetal.sourceforge.net/javadoc/jmetal/qualityIndicator/GeneralizedSpread.html) for more objectives, with Euclidean distances in the original objective coordinates. A matching reference Pareto front and at least two finite feasible nondominated solutions are required; otherwise the value is `N/A`.
+- `Pairwise objective-space spread` is the mean Euclidean distance between all
+  pairs after objective-wise min-max normalization using the current approximation set,
+  divided by the square root of the objective count. Higher values mean greater average
+  separation. It does not require a reference front, is not Deb's Spread, and does not
+  directly measure distribution uniformity. Because the current set defines the scale
+  and sample, comparisons across generations or sets of different sizes require caution.
+- `Delta` is computed for every algorithm in single and batch runs and its generation
+  chart is always visible. It uses classical Delta for two objectives and
+  [generalized spread](https://jmetal.sourceforge.net/javadoc/jmetal/qualityIndicator/GeneralizedSpread.html)
+  for more objectives, with Euclidean distances in the original objective coordinates.
+  Lower values are better; `0` means uniform spacing together with coverage of the
+  reference extremes. A matching reference Pareto front and at least two finite feasible
+  nondominated solutions are required; otherwise the value is `N/A`.
 - `KKTPM` requires decision vectors and a compatible problem definition; finite variable bounds are included as KKT inequality constraints
 - the generation-level `KKTPM` value is the arithmetic mean over finite values for the current feasible nondominated set
 
@@ -642,6 +671,19 @@ The exported table contains:
 - nondominated count
 - metric values in the GUI table order
 
+Every Main and Multi run receives one UTC identifier, for example
+`2026-10-31T15-30-12Z_NSGA2_ZDT1_seed42`. The identifier is shown in the Main
+window or Multi result table and is reused in the metrics filename, solutions
+filename, screenshot default name, plot default name, logs, and workbook metadata.
+
+Both the metrics and solutions workbooks contain an English `Configuration`
+worksheet. It records the run ID, framework name and version, Git commit, UTC start
+time, problem and algorithm keys and labels, all resolved parameters, implementation
+type and source, seed, termination, final generation and evaluation count, complete
+HV normalization data, Python and dependency versions, terminal status, and parallel
+backend settings. A Git commit is reported as `unavailable` only when the application
+is running outside a Git checkout, for example from a standalone packaged build.
+
 ### Nondominated solution export
 
 The GUI can export nondominated solutions:
@@ -657,7 +699,18 @@ Each exported row may contain:
 - `x1`, `x2`, ... when decision vectors are available
 
 If multiple epochs are exported, the solutions workbook contains multiple
-worksheets named by epoch.
+worksheets named by epoch plus the shared `Configuration` worksheet.
+
+### Multi experiment manifest
+
+Every Multi batch also creates `multi_experiments/<experiment_id>/` containing:
+
+- `experiment_manifest.json` with batch settings and every processed run,
+- `runs.xlsx` with one row per algorithm/problem combination and its own
+  `Configuration` worksheet.
+
+Each combination still produces separate metrics and solutions workbooks. Both
+contain an identical copy of that run's complete configuration.
 
 ## Result formats produced by the framework
 
@@ -692,8 +745,8 @@ Solution workbooks are written to:
 
 - `solution_tables`
 
-The filename includes sanitized algorithm and problem names. If a file already
-exists, the exporter appends `_1`, `_2`, and so on.
+The metrics and solutions filenames use the same `run_id`. If a file already exists,
+the exporter appends `_1`, `_2`, and so on.
 
 When running **AGtest-framework.exe**, both output folders are created
 automatically **in the folder containing the EXE** when results are saved. This
@@ -710,6 +763,10 @@ D:\Experiments\
         ... .xlsx
     solution_tables\
         ... .xlsx
+    multi_experiments\
+        <experiment_id>\
+            experiment_manifest.json
+            runs.xlsx
 ```
 
 `metrics_tables` contains metric histories, and `solution_tables` contains

@@ -1,4 +1,8 @@
 # LZ09 benchmark family implementation for pymoo.
+# Provenance: AGtest-framework standalone problem implementation; not imported from pymoo.
+# Basis publication: H. Li and Q. Zhang, "Multiobjective Optimization Problems
+# With Complicated Pareto Sets, MOEA/D and NSGA-II," IEEE TEVC 13(2), 2009,
+# DOI: 10.1109/TEVC.2008.925798.
 
 # ------------------------------------------------------------------------------------
 # Module: lz09.py

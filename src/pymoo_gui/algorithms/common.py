@@ -1,4 +1,5 @@
 # Shared generation-payload, Pareto-front and callback utilities for GUI algorithms.
+# Provenance: AGtest-framework infrastructure using pymoo Callback, sorting and reference-direction APIs.
 
 # ------------------------------------------------------------------------------------
 # Module: common.py
@@ -19,7 +20,7 @@ from pymoo.core.callback import Callback
 from pymoo.util.nds.non_dominated_sorting import NonDominatedSorting
 from pymoo.util.ref_dirs import get_reference_directions
 
-from ..metrics import METRIC_TABLE_ORDER, compute_metrics, is_delta_supported
+from ..metrics import HypervolumeConfig, METRIC_TABLE_ORDER, compute_metrics, is_delta_supported
 
 
 logger = logging.getLogger(__name__)
@@ -45,6 +46,7 @@ class GenerationPayload(TypedDict, total=False):
     population_F: Optional[np.ndarray]
     feasible_nd_X: Optional[np.ndarray]
     feasible_nd_F: Optional[np.ndarray]
+    hv_config: Optional[dict[str, Any]]
     diagnostics: list[str]
 
 
@@ -270,6 +272,7 @@ def make_generation_callback(
     hv_ref_point: Optional[list[float]] = None,
     known_pf: Optional[np.ndarray] = None,
     algorithm_key: Optional[str] = None,
+    hv_config: Optional[HypervolumeConfig] = None,
 ) -> Callback:
     # Create a pymoo callback that emits normalized generation payloads and metrics.
     # Args:
@@ -314,6 +317,7 @@ def make_generation_callback(
                 "population_F": None,
                 "feasible_nd_X": None,
                 "feasible_nd_F": None,
+                "hv_config": hv_config.as_dict() if hv_config is not None else None,
                 "diagnostics": diagnostics,
             }
 
@@ -368,6 +372,7 @@ def make_generation_callback(
                         X=payload["feasible_nd_X"],
                         problem=problem,
                         delta_supported=is_delta_supported(algorithm_key, n_obj),
+                        hv_config=hv_config,
                     )
                 except (TypeError, ValueError, ArithmeticError) as exc:
                     _record_diagnostic(diagnostics, "compute_metrics failed", exc)

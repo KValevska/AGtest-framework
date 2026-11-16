@@ -1,4 +1,6 @@
 # Shared utilities and GUI-compatible base classes for custom research MOEAs.
+# Provenance: AGtest-framework infrastructure and local variation/survival implementations;
+#             no ready-made optimizer is imported from pymoo or Platypus.
 
 # ------------------------------------------------------------------------------------
 # Module: research_common.py
@@ -18,14 +20,57 @@ from types import SimpleNamespace
 from typing import Any, Dict, Iterable, Optional, Sequence
 
 import numpy as np
-from pymoo.core.result import Result
-from pymoo.util.nds.non_dominated_sorting import NonDominatedSorting
-from pymoo.util.ref_dirs import get_reference_directions
 
-from .platypus_common import termination_generations
-
+from .encoding_operators import (
+    binary_crossover,
+    binary_sample,
+    bitflip_mutation,
+    integer_repair,
+    integer_sample,
+    mixed_repair,
+)
+from pymoo_gui.problems.capabilities import infer_problem_variable_type
 
 FEASIBILITY_TOL = 1e-12
+
+
+def non_dominated_fronts(F: np.ndarray) -> list[np.ndarray]:
+    # Fast non-dominated sorting for minimization, implemented directly from NSGA-II.
+    values = np.asarray(F, dtype=float)
+    n = values.shape[0]
+    if n == 0:
+        return []
+    dominates = np.all(values[:, None, :] <= values[None, :, :], axis=2) & np.any(
+        values[:, None, :] < values[None, :, :], axis=2
+    )
+    domination_count = np.sum(dominates, axis=0).astype(int)
+    fronts: list[np.ndarray] = []
+    current = np.flatnonzero(domination_count == 0)
+    assigned = np.zeros(n, dtype=bool)
+    while current.size:
+        fronts.append(current)
+        assigned[current] = True
+        domination_count -= np.sum(dominates[current], axis=0).astype(int)
+        domination_count[current] = -1
+        current = np.flatnonzero((domination_count == 0) & ~assigned)
+    return fronts
+
+
+def das_dennis_reference_directions(n_obj: int, n_partitions: int) -> np.ndarray:
+    # Enumerate simplex-lattice directions without using a library algorithm.
+    n_obj = int(n_obj)
+    n_partitions = int(n_partitions)
+    rows: list[list[int]] = []
+
+    def enumerate_compositions(prefix: list[int], remaining: int, dimensions: int) -> None:
+        if dimensions == 1:
+            rows.append(prefix + [remaining])
+            return
+        for value in range(remaining + 1):
+            enumerate_compositions(prefix + [value], remaining - value, dimensions - 1)
+
+    enumerate_compositions([], n_partitions, n_obj)
+    return np.asarray(rows, dtype=float) / float(n_partitions)
 
 
 def parse_positive_int(value: Any, field_name: str) -> int:
@@ -66,6 +111,37 @@ def parse_probability(value: Any, field_name: str) -> float:
     if not 0.0 <= parsed <= 1.0:
         raise ValueError(f"{field_name} must be in [0, 1], got {parsed}")
     return parsed
+
+
+def parse_epsilons(value: Any, n_obj: int, field_name: str = "epsilons") -> list[float]:
+    # Normalize a scalar, text value or sequence to one positive epsilon per objective.
+    if value is None:
+        values: list[Any] = [0.01]
+    elif isinstance(value, str):
+        values = [part.strip() for part in value.replace(";", ",").split(",") if part.strip()] or [0.01]
+    else:
+        try:
+            values = list(value)
+        except TypeError:
+            values = [value]
+    epsilons = [parse_positive_float(item, field_name) for item in values]
+    if len(epsilons) == 1:
+        epsilons *= int(n_obj)
+    if len(epsilons) != int(n_obj):
+        raise ValueError(f"{field_name} must have length 1 or n_obj={n_obj}, got {len(epsilons)}")
+    return epsilons
+
+
+def termination_generations(termination: Any) -> Optional[int]:
+    # Extract a generation budget from the representations accepted by the GUI.
+    if termination is None or termination.__class__.__name__ == "NoTermination":
+        return None
+    if isinstance(termination, tuple) and len(termination) >= 2 and str(termination[0]).lower() == "n_gen":
+        return parse_positive_int(termination[1], "n_gen")
+    n_max_gen = getattr(termination, "n_max_gen", None)
+    if n_max_gen is not None and math.isfinite(float(n_max_gen)):
+        return parse_positive_int(n_max_gen, "n_max_gen")
+    return None
 
 
 def parse_reference_directions(value: Any, n_obj: int) -> Optional[np.ndarray]:
@@ -175,7 +251,7 @@ def assign_rank_and_crowding(F: np.ndarray, CV: np.ndarray) -> tuple[np.ndarray,
     feasible = feasible_mask(CV)
     feasible_idx = np.flatnonzero(feasible)
     if feasible_idx.size:
-        fronts = NonDominatedSorting().do(F[feasible_idx], only_non_dominated_front=False)
+        fronts = non_dominated_fronts(F[feasible_idx])
         for front_rank, front in enumerate(fronts):
             front = feasible_idx[np.asarray(front, dtype=int)]
             rank[front] = front_rank
@@ -403,15 +479,18 @@ def sample_reference_directions(
     if reference_directions is not None:
         return np.asarray(reference_directions, dtype=float)
 
-    try:
-        refs = get_reference_directions("das-dennis", int(n_obj), n_partitions=int(max(n_partitions, 1)))
-    except Exception:
-        refs = np.empty((0, int(n_obj)), dtype=float)
+    refs = das_dennis_reference_directions(int(n_obj), int(max(n_partitions, 1)))
 
     refs = np.asarray(refs, dtype=float)
     if refs.ndim != 2 or refs.shape[1] != int(n_obj):
         refs = np.empty((0, int(n_obj)), dtype=float)
 
+    if refs.shape[0] > int(population_size):
+        # A high-dimensional Das-Dennis lattice can be much larger than a
+        # practical population. Keep a deterministic, evenly distributed
+        # subset instead of rejecting the problem at factory construction.
+        take = np.linspace(0, refs.shape[0] - 1, int(population_size)).round().astype(int)
+        refs = refs[take]
     if refs.shape[0] < int(population_size):
         extra = rng.dirichlet(np.ones(int(n_obj)), size=int(population_size) - refs.shape[0])
         refs = np.vstack([refs, extra]) if refs.size else extra
@@ -542,6 +621,7 @@ class ResearchMOOAlgorithm:
         self.xu: np.ndarray = np.empty(0, dtype=float)
         self.n_var = 0
         self.n_obj = 0
+        self.variable_type = "real"
         self.state: Optional[PopulationState] = None
         self.archive: Optional[PopulationState] = None
         self.pop = ArrayPopulationView(None)
@@ -563,6 +643,7 @@ class ResearchMOOAlgorithm:
         self.problem = problem
         self.xl, self.xu, self.n_var = problem_bounds(problem)
         self.n_obj = problem_n_obj(problem)
+        self.variable_type = infer_problem_variable_type(problem)
         self.reference_directions = sample_reference_directions(
             self.n_obj,
             self.population_size,
@@ -592,6 +673,13 @@ class ResearchMOOAlgorithm:
 
     def sample_initial_population(self) -> np.ndarray:
         # Sample the initial population uniformly inside the problem bounds.
+        if self.variable_type == "binary":
+            return binary_sample((self.population_size, self.n_var), self.random_state)
+        if self.variable_type == "integer":
+            return integer_sample(self.xl, self.xu, self.population_size, self.random_state)
+        if self.variable_type == "mixed":
+            raw = self.random_state.uniform(self.xl, self.xu, size=(self.population_size, self.n_var))
+            return mixed_repair(raw, self.problem)
         return self.random_state.uniform(self.xl, self.xu, size=(self.population_size, self.n_var))
 
     def warm_start_candidates(self) -> Optional[np.ndarray]:
@@ -600,7 +688,14 @@ class ResearchMOOAlgorithm:
 
     def evaluate(self, X: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         # Evaluate a decision matrix on the current problem and update evaluation counters.
-        F, CV = evaluate_problem(self.problem, project_to_bounds(X, self.xl, self.xu))
+        values = project_to_bounds(X, self.xl, self.xu)
+        if self.variable_type == "binary":
+            values = np.asarray(values >= 0.5, dtype=np.int8)
+        elif self.variable_type == "integer":
+            values = integer_repair(values, self.xl, self.xu)
+        elif self.variable_type == "mixed":
+            values = mixed_repair(values, self.problem)
+        F, CV = evaluate_problem(self.problem, values)
         self.evaluator.n_eval += int(np.asarray(X).shape[0])
         return F, CV
 
@@ -618,6 +713,10 @@ class ResearchMOOAlgorithm:
     def crossover(self, parent_pairs: np.ndarray) -> np.ndarray:
         # Create offspring with SBX crossover over the selected parent pairs.
         assert self.state is not None
+        if self.variable_type == "binary":
+            return binary_crossover(
+                self.state.X, parent_pairs, self.crossover_rate, self.random_state
+            )
         return sbx_crossover(
             self.state.X,
             parent_pairs,
@@ -630,6 +729,19 @@ class ResearchMOOAlgorithm:
 
     def mutation(self, offspring: np.ndarray) -> np.ndarray:
         # Mutate offspring with polynomial mutation.
+        if self.variable_type == "binary":
+            probability = self.mutation_rate if self.mutation_rate > 0 else 1.0 / self.n_var
+            return bitflip_mutation(offspring, probability, self.random_state)
+        if self.variable_type == "integer":
+            mutated = polynomial_mutation(
+                offspring, self.xl, self.xu, self.mutation_eta, self.mutation_rate, self.random_state
+            )
+            return integer_repair(mutated, self.xl, self.xu)
+        if self.variable_type == "mixed":
+            mutated = polynomial_mutation(
+                offspring, self.xl, self.xu, self.mutation_eta, self.mutation_rate, self.random_state
+            )
+            return mixed_repair(mutated, self.problem)
         return polynomial_mutation(
             offspring,
             self.xl,
@@ -745,6 +857,14 @@ class ResearchMOOAlgorithm:
         if self.state is None:
             raise RuntimeError("Algorithm must be initialized before step().")
 
+        advance_time = getattr(self.problem, "advance_time", None)
+        if callable(advance_time) and advance_time(self.n_gen + 1):
+            refreshed_F, refreshed_CV = self.evaluate(self.state.X)
+            self.state = self.environmental_selection(
+                self.state.X, refreshed_F, refreshed_CV, self.population_size
+            )
+            self.archive = self.build_archive(self.state)
+
         previous = self.state
         offspring = self.create_offspring()
         guided = self.guided_candidates()
@@ -770,9 +890,9 @@ class ResearchMOOAlgorithm:
             if callback is not None:
                 callback(self)
 
-    def finalize_result(self) -> Result:
-        # Build a pymoo-compatible result object from the current state.
-        result = Result()
+    def finalize_result(self) -> SimpleNamespace:
+        # Build a lightweight result object exposing the fields consumed by the GUI.
+        result = SimpleNamespace()
         result.algorithm = self
         result.problem = self.problem
         result.X = None if self.state is None else self.state.X
@@ -788,7 +908,7 @@ class ResearchMOOAlgorithm:
         seed: Optional[int] = None,
         callback: Any = None,
         **kwargs: Any,
-    ) -> Result:
+    ) -> SimpleNamespace:
         # GUI-compatible optimization entry point used by the framework dispatcher.
         self.setup_rng(seed)
         self.evaluator.n_eval = 0

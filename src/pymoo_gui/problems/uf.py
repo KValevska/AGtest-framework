@@ -1,5 +1,8 @@
 # UF benchmark family adapters for pymoo.
 # Definiuje adaptery problemow UF1-UF10 z biblioteki Platypus.
+# Provenance: Platypus problem implementations accessed through an AGtest-framework adapter.
+# Basis publication: Q. Zhang et al., "Multiobjective Optimization Test Instances
+# for the CEC 2009 Special Session and Competition," CEC 2009 technical report.
 
 # ------------------------------------------------------------------------------------
 # Module: uf.py

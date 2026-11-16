@@ -1,4 +1,6 @@
 # Adapters and validation helpers that let Platypus algorithms run in the pymoo GUI flow.
+# Provenance: AGtest-framework adapter infrastructure using the public platypus-opt API.
+# Basis: library interoperability code; this module does not implement a research algorithm.
 
 # ------------------------------------------------------------------------------------
 # Module: platypus_common.py

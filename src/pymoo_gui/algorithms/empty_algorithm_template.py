@@ -1,5 +1,6 @@
 # ------------------------------------------------------------------------------------
 # Module: empty_algorithm_template.py
+# Provenance: AGtest-framework template; no optimization method is claimed by this module.
 # Summary: template algorithm class, factory and optional GUI registry definition.
 # Implementation: the module exposes a minimal custom algorithm skeleton with clear
 # extension points for initialization, offspring generation, survivor selection and

@@ -4,6 +4,7 @@ import os
 import tempfile
 import time
 from pathlib import Path
+from zipfile import ZipFile
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ.setdefault("MPLCONFIGDIR", str(Path(tempfile.gettempdir()) / "pymoo_gui_mpl_cache"))
@@ -113,6 +114,33 @@ def test_browse_epochs_preserves_snapshots_and_keeps_metrics_history(app):
 
 
 @pytest.mark.parametrize("dim", [2, 3])
+def test_population_outside_reference_front_remains_visible(app, dim):
+    reference = np.array(
+        [[0.0, 1.0, 0.0], [0.5, 0.5, 0.5], [1.0, 0.0, 1.0]],
+        dtype=float,
+    )[:, :dim]
+    population = np.array(
+        [[100.0, 300.0, 500.0], [900.0, 1200.0, 1400.0]],
+        dtype=float,
+    )[:, :dim]
+    widget = UnifiedParetoWidget(reference)
+    try:
+        widget.set_show_population(True)
+        widget.update_points(population, population[:1], reference, 1)
+        app.processEvents()
+
+        limits = widget.get_axis_limits()
+        assert limits is not None
+        assert limits[1] >= np.max(population[:, 0])
+        assert limits[3] >= np.max(population[:, 1])
+        if dim == 3:
+            assert limits[5] >= np.max(population[:, 2])
+        assert widget.render_snapshot()["pop_shape"] == population.shape
+    finally:
+        widget.close()
+
+
+@pytest.mark.parametrize("dim", [2, 3])
 def test_grid_and_complete_png_export_preserve_current_view(app, tmp_path, dim):
     points = np.array([[0.2, 0.7, 0.5], [0.5, 0.4, 0.1]])[:, :dim]
     widget = UnifiedParetoWidget(points)
@@ -175,8 +203,27 @@ def test_step_button_advances_from_history_and_stop_exports(app, tmp_path, monke
         window.stop_btn.click()
         wait_until(app, lambda: window._thread is None)
         assert window.step_run_btn.isEnabled()
-        assert list(tmp_path.glob("metrics_tables/*.xlsx"))
-        assert list(tmp_path.glob("solution_tables/*.xlsx"))
+        metrics_files = list(tmp_path.glob("metrics_tables/*.xlsx"))
+        solution_files = list(tmp_path.glob("solution_tables/*.xlsx"))
+        assert len(metrics_files) == 1
+        assert len(solution_files) == 1
+        assert window._run_id
+        assert window.run_id_lbl.text() == f"Run ID: {window._run_id}"
+        assert metrics_files[0].stem == solution_files[0].stem == window._run_id
+        for path in (metrics_files[0], solution_files[0]):
+            with ZipFile(path) as workbook:
+                workbook_xml = workbook.read("xl/workbook.xml").decode("utf-8")
+                worksheets = b"".join(
+                    workbook.read(name)
+                    for name in workbook.namelist()
+                    if name.startswith("xl/worksheets/sheet")
+                ).decode("utf-8")
+                assert "Configuration" in workbook_xml
+                assert window._run_id in worksheets
+                assert "Algorithm parameter: pop_size" in worksheets
+                assert "Git commit" in worksheets
+                assert "Python version" in worksheets
+                assert "Run status" in worksheets
     finally:
         if worker is not None:
             worker.request_cancel()

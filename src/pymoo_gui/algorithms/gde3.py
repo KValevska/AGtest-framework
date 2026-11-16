@@ -1,4 +1,5 @@
 # GDE3 implementation and GUI factory definition.
+# Provenance: AGtest-framework standalone implementation; not imported from pymoo or Platypus.
 #
 # ------------------------------------------------------------------------------------
 # Module: gde3.py
@@ -7,6 +8,7 @@
 # Responsibility: adds a constrained multiobjective differential-evolution baseline for dissertation experiments.
 # Author: Kristina Valevska, MSc Eng.
 # Implementation source: based on Kukkonen, S., Lampinen, J. "GDE3: The third evolution step of generalized differential evolution" (CEC 2005).
+# DOI: 10.1109/CEC.2005.1554717
 # ------------------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -14,7 +16,6 @@ from __future__ import annotations
 from typing import Any, Dict
 
 import numpy as np
-from pymoo.util.nds.non_dominated_sorting import NonDominatedSorting
 
 from .research_common import (
     FEASIBILITY_TOL,
@@ -23,6 +24,7 @@ from .research_common import (
     assign_rank_and_crowding,
     crowding_distance,
     feasible_mask,
+    non_dominated_fronts,
     parse_positive_float,
     parse_probability,
     project_to_bounds,
@@ -125,7 +127,7 @@ class GDE3(ResearchMOOAlgorithm):
         selected: list[int] = []
 
         if feasible_idx.size:
-            fronts = NonDominatedSorting().do(F[feasible_idx], only_non_dominated_front=False)
+            fronts = non_dominated_fronts(F[feasible_idx])
             for front in fronts:
                 actual = feasible_idx[np.asarray(front, dtype=int)]
                 if len(selected) + actual.size <= int(n_survive):

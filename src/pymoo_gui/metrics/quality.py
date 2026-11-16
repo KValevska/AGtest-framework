@@ -2,7 +2,7 @@
 
 # ------------------------------------------------------------------------------------
 # Module: quality.py
-# Summary: metric result model and implementations of HV, GD, IGD, Spread, Delta and KKTPM calculations.
+# Summary: metric result model and implementations of HV, GD, IGD, pairwise separation, Delta and KKTPM calculations.
 # Implementation: objective and decision data are normalized, filtered for feasibility and evaluated with indicators.
 # Responsibility: computes quantitative quality measures for dissertation optimization results.
 # Author: Kristina Valevska, MSc Eng.
@@ -26,7 +26,7 @@ METRIC_LABELS = {
     "gd": "GD",
     "igd_plus": "IGD+",
     "gd_plus": "GD+",
-    "spread": "Spread",
+    "spread": "Pairwise objective-space spread",
     "delta": "Delta",
     "kktpm": "KKTPM",
 }
@@ -57,6 +57,77 @@ class MetricResult:
     n_obj: Optional[int] = None
     ref_point: Optional[np.ndarray] = None
     kktpm_values: Optional[np.ndarray] = None
+
+
+@dataclass(frozen=True)
+class HypervolumeConfig:
+    """Immutable hypervolume coordinate system fixed before an experiment."""
+
+    n_obj: int
+    mode: str
+    source: str
+    reference_point: np.ndarray
+    raw_reference_point: np.ndarray
+    ideal: Optional[np.ndarray] = None
+    nadir: Optional[np.ndarray] = None
+    normalized: bool = False
+
+    def transform(self, objectives: np.ndarray) -> np.ndarray:
+        values = np.asarray(objectives, dtype=float)
+        if not self.normalized:
+            return values
+        if self.ideal is None or self.nadir is None:
+            raise ValueError("Normalized HV requires frozen ideal and nadir points.")
+        span = self.nadir - self.ideal
+        if np.any(span <= 0.0):
+            raise ValueError("Every normalized HV objective must have a positive frozen range.")
+        return (values - self.ideal) / span
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "mode": self.mode,
+            "source": self.source,
+            "normalized": self.normalized,
+            "n_obj": self.n_obj,
+            "ideal": None if self.ideal is None else self.ideal.tolist(),
+            "nadir": None if self.nadir is None else self.nadir.tolist(),
+            "raw_reference_point": self.raw_reference_point.tolist(),
+            "reference_point": self.reference_point.tolist(),
+        }
+
+
+def compute_igdx(X: np.ndarray, reference_set: np.ndarray) -> Optional[float]:
+    """Decision-space inverted generational distance for multimodal problems."""
+    approximation = _as_decision_matrix(X)
+    reference = _as_decision_matrix(reference_set)
+    if approximation is None or reference is None or approximation.shape[1] != reference.shape[1]:
+        return None
+    approximation, reference = _finite_rows(approximation), _finite_rows(reference)
+    if not len(approximation) or not len(reference):
+        return None
+    distances = np.linalg.norm(reference[:, None, :] - approximation[None, :, :], axis=2)
+    return float(np.mean(np.min(distances, axis=1)))
+
+
+def compute_psp(X: np.ndarray, reference_set: np.ndarray) -> Optional[float]:
+    """Pareto-set proximity/coverage score; larger values indicate better recovery."""
+    igdx = compute_igdx(X, reference_set)
+    reference = _as_decision_matrix(reference_set)
+    if igdx is None or reference is None:
+        return None
+    span = np.ptp(reference, axis=0)
+    active = span > 1e-15
+    if not np.any(active):
+        return None
+    scale = float(np.linalg.norm(span[active]))
+    return float(1.0 / (1.0 + igdx / max(scale, 1e-15)))
+
+
+def compute_dynamic_average(values: list[Optional[float]]) -> Optional[float]:
+    """Mean indicator over valid environment states (MIGD or MHV)."""
+    finite = np.asarray([value for value in values if value is not None], dtype=float)
+    finite = finite[np.isfinite(finite)]
+    return float(np.mean(finite)) if finite.size else None
 
 
 def _safe_float(x) -> Optional[float]:
@@ -338,12 +409,14 @@ def _calc_cv(G: np.ndarray) -> np.ndarray:
     return np.sum(np.maximum(G, 0.0), axis=1)
 
 
-def compute_spread(F: np.ndarray) -> Optional[float]:
-    # Compute a normalized diversity spread score from objective-space distances.
-    # Args:
-    # F (np.ndarray): Objective matrix.
-    # Returns:
-    # Optional[float]: Diversity score, or `None` for invalid data.
+def compute_mean_normalized_pairwise_separation(F: np.ndarray) -> Optional[float]:
+    """Return mean pairwise separation after current-set min-max normalization.
+
+    Higher values mean that points are farther apart on average. This is not
+    Deb's Spread and does not directly measure distribution uniformity. Each
+    call derives its normalization ranges from ``F``; consequently values from
+    sets with different ranges or cardinalities require cautious comparison.
+    """
     A = _as_2d(F)
     if A is None:
         return None
@@ -366,6 +439,11 @@ def compute_spread(F: np.ndarray) -> Optional[float]:
     if upper.size == 0:
         return 0.0
     return _safe_float(np.mean(upper) / np.sqrt(float(A.shape[1])))
+
+
+def compute_spread(F: np.ndarray) -> Optional[float]:
+    """Backward-compatible alias for mean normalized pairwise separation."""
+    return compute_mean_normalized_pairwise_separation(F)
 
 
 def compute_delta(F: np.ndarray, pareto_front: np.ndarray) -> Optional[float]:
@@ -556,8 +634,9 @@ def compute_metrics(
     problem: Any = None,
     kktpm_ideal: Optional[np.ndarray] = None,
     delta_supported: bool = True,
+    hv_config: Optional[HypervolumeConfig] = None,
 ) -> MetricResult:
-    # Compute GD, IGD, GD+, IGD+, Spread, Delta, HV and optionally KKTPM.
+    # Compute GD, IGD, GD+, IGD+, pairwise separation, Delta, HV and optionally KKTPM.
     # Args:
     # F (np.ndarray): Objective matrix for evaluated solutions.
     # pareto_front (Optional[np.ndarray]): Known reference Pareto front.
@@ -646,19 +725,32 @@ def compute_metrics(
 
     if A.shape[1] >= 2:
         ref_arr = None
-        if ref_point is not None:
+        hv_points = A
+        if hv_config is not None:
+            try:
+                if int(hv_config.n_obj) == A.shape[1]:
+                    hv_points = hv_config.transform(A)
+                    ref_arr = np.asarray(hv_config.reference_point, dtype=float).reshape(-1)
+            except (TypeError, ValueError, ArithmeticError):
+                ref_arr = None
+        elif ref_point is not None:
             try:
                 ref_arr = np.asarray(ref_point, dtype=float).reshape(-1)
                 if ref_arr.size != A.shape[1]:
                     ref_arr = None
             except Exception:
                 ref_arr = None
-        if ref_arr is not None:
+        if (
+            ref_arr is not None
+            and ref_arr.size == A.shape[1]
+            and np.isfinite(ref_arr).all()
+            and np.all(hv_points < ref_arr[None, :])
+        ):
             try:
                 from pymoo.indicators.hv import HV
 
                 result.ref_point = np.asarray(ref_arr, dtype=float)
-                hv_val = HV(ref_point=ref_arr)(A)
+                hv_val = HV(ref_point=ref_arr)(hv_points)
                 result.hv = _safe_float(hv_val)
             except Exception:
                 result.hv = None
@@ -678,8 +770,13 @@ def compute_metrics(
     return result
 
 
-def get_hv_ref_point(problem_name: Optional[str], n_obj: Optional[int]) -> Optional[np.ndarray]:
-    # Return a fixed HV reference point for a problem and objective count.
+def resolve_hv_config(
+    problem_name: Optional[str],
+    n_obj: Optional[int],
+    pareto_front: Optional[np.ndarray] = None,
+    manual_ref_point: Optional[np.ndarray] = None,
+) -> Optional[HypervolumeConfig]:
+    """Freeze one valid HV coordinate system before an experiment starts."""
     if problem_name is None or n_obj is None:
         return None
     try:
@@ -688,10 +785,58 @@ def get_hv_ref_point(problem_name: Optional[str], n_obj: Optional[int]) -> Optio
         return None
     if n_obj <= 0:
         return None
-    if problem_name == "DTLZ1" and n_obj == 3:
-        # DTLZ1 PF lies roughly on f1+f2+f3=0.5, with objectives in [0, 0.5].
-        return np.array([0.6, 0.6, 0.6], dtype=float)
-    return np.full(n_obj, 1.1, dtype=float)
+    manual = None
+    if manual_ref_point is not None:
+        try:
+            manual = np.asarray(manual_ref_point, dtype=float).reshape(-1)
+        except (TypeError, ValueError):
+            return None
+        if manual.size != n_obj or not np.isfinite(manual).all():
+            return None
+    pf = _as_2d(pareto_front, n_obj=n_obj)
+    if pf is not None:
+        pf = _finite_rows(pf)
+        if pf.shape[0] > 0:
+            ideal = np.min(pf, axis=0)
+            nadir = np.max(pf, axis=0)
+            span = nadir - ideal
+            tolerance = np.finfo(float).eps * np.maximum(np.maximum(np.abs(ideal), np.abs(nadir)), 1.0)
+            if np.any(span <= tolerance):
+                return None
+            raw_reference = nadir + 0.1 * span if manual is None else manual
+            if not np.all(pf < raw_reference[None, :]):
+                return None
+            normalized_reference = (raw_reference - ideal) / span
+            return HypervolumeConfig(
+                n_obj=n_obj,
+                mode="auto" if manual is None else "manual",
+                source="known_pareto_front",
+                reference_point=normalized_reference.copy(),
+                raw_reference_point=raw_reference.copy(),
+                ideal=ideal.copy(),
+                nadir=nadir.copy(),
+                normalized=True,
+            )
+    if manual is None:
+        return None
+    return HypervolumeConfig(
+        n_obj=n_obj,
+        mode="manual",
+        source="manual_without_normalization",
+        reference_point=manual.copy(),
+        raw_reference_point=manual.copy(),
+        normalized=False,
+    )
+
+
+def get_hv_ref_point(
+    problem_name: Optional[str],
+    n_obj: Optional[int],
+    pareto_front: Optional[np.ndarray] = None,
+) -> Optional[np.ndarray]:
+    # Backward-compatible raw-space view of the shared frozen HV configuration.
+    config = resolve_hv_config(problem_name, n_obj, pareto_front=pareto_front)
+    return None if config is None else config.raw_reference_point.copy()
 
 
 def fixed_ref_point_for_problem(problem_name: Optional[str], n_obj: Optional[int]) -> Optional[np.ndarray]:

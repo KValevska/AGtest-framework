@@ -1,4 +1,7 @@
 # Golinski speed reducer benchmark problem implementation for pymoo.
+# Provenance: AGtest-framework standalone problem implementation; not imported from pymoo.
+# Basis publication: C. A. Coello Coello, "Use of a Self-Adaptive Penalty Approach
+# for Engineering Optimization Problems," Computers in Industry 41, 2000.
 
 # ------------------------------------------------------------------------------------
 # Module: golinski.py

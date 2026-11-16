@@ -33,25 +33,42 @@ def _compute_stable_limits(
     pop_arr: Optional[np.ndarray],
 ) -> Optional[Tuple[np.ndarray, np.ndarray]]:
     # Compute stable axis limits from reference, front and population arrays.
+    candidates = []
+    for arr in (ref_arr, front_arr, pop_arr):
+        if arr is not None and arr.ndim == 2 and arr.shape[0] > 0:
+            finite = arr[np.isfinite(arr).all(axis=1)]
+            if finite.shape[0] > 0:
+                candidates.append(finite)
+    if not candidates:
+        return None
+
     use_pf = ref_arr is not None and ref_arr.ndim == 2 and ref_arr.shape[0] >= 2
+    exact_bounds = False
     if use_pf:
-        data = ref_arr
-    else:
-        candidates = []
-        for arr in (front_arr, pop_arr, ref_arr):
-            if arr is not None and arr.ndim == 2 and arr.shape[0] > 0:
-                candidates.append(arr)
-        if not candidates:
-            return None
+        finite_ref = ref_arr[np.isfinite(ref_arr).all(axis=1)]
+        if finite_ref.shape[0] < 2:
+            use_pf = False
+        else:
+            ref_mins = finite_ref.min(axis=0)
+            ref_maxs = finite_ref.max(axis=0)
+            other_arrays = [arr for arr in candidates if arr is not finite_ref]
+            outside_reference = any(
+                np.any(arr < ref_mins[None, :]) or np.any(arr > ref_maxs[None, :])
+                for arr in other_arrays
+            )
+            if outside_reference:
+                data = np.vstack(candidates)
+                exact_bounds = True
+            else:
+                data = finite_ref
+                exact_bounds = True
+    if not use_pf:
         try:
             data = np.vstack(candidates)
         except Exception:
             return None
 
-    if data.shape[0] < 20 and not use_pf:
-        mins = data.min(axis=0)
-        maxs = data.max(axis=0)
-    elif use_pf:
+    if exact_bounds or data.shape[0] < 20:
         mins = data.min(axis=0)
         maxs = data.max(axis=0)
     else:
@@ -224,10 +241,10 @@ class PyQtGraphParetoDialog(QDialog):
         front_arr: Optional[np.ndarray],
         pop_arr: Optional[np.ndarray],
     ) -> None:
-        # Apply stable limits once per reference context or first data update.
+        # Keep stable limits, expanding them when a visible series would be clipped.
         reference_signature = self._reference_limits_signature(ref_arr)
         if reference_signature is not None and reference_signature != self._reference_signature:
-            limits = _compute_stable_limits(ref_arr, None, None)
+            limits = _compute_stable_limits(ref_arr, front_arr, pop_arr)
             if limits is not None:
                 mins, maxs = limits
                 self._set_fixed_limits(mins, maxs)
@@ -235,6 +252,29 @@ class PyQtGraphParetoDialog(QDialog):
             return
 
         if self._limits_initialized:
+            if not self._auto_scale or self._fixed_limits is None:
+                return
+            xmin, xmax, ymin, ymax = self._fixed_limits
+            visible = [
+                arr for arr in (front_arr, pop_arr)
+                if arr is not None and arr.ndim == 2 and arr.shape[0] > 0
+            ]
+            outside = any(
+                np.any(arr[:, 0] < xmin)
+                or np.any(arr[:, 0] > xmax)
+                or np.any(arr[:, 1] < ymin)
+                or np.any(arr[:, 1] > ymax)
+                for arr in visible
+            )
+            if not outside:
+                return
+            limits = _compute_stable_limits(ref_arr, front_arr, pop_arr)
+            if limits is None:
+                return
+            mins, maxs = limits
+            mins = np.minimum(mins, np.array([xmin, ymin]))
+            maxs = np.maximum(maxs, np.array([xmax, ymax]))
+            self._set_fixed_limits(mins, maxs)
             return
         limits = _compute_stable_limits(ref_arr, front_arr, pop_arr)
         if limits is None:
@@ -512,41 +552,9 @@ class MatplotlibParetoDialog(_MatplotlibPlotControls, QDialog):
             self.scatter_pop.set_offsets(np.empty((0, 2)))
 
         if self._auto_scale or not self._limits_initialized:
-            use_pf = ref is not None and ref.shape[0] >= 2
-            if use_pf:
-                data = ref
-            else:
-                candidates = []
-                if front is not None and front.size > 0:
-                    candidates.append(front)
-                if pop is not None and pop.size > 0:
-                    candidates.append(pop)
-                if ref is not None and ref.size > 0:
-                    candidates.append(ref)
-                if candidates:
-                    try:
-                        data = np.vstack(candidates)
-                    except Exception:
-                        data = None
-                else:
-                    data = None
-
-            if data is not None:
-                if data.shape[0] < 20 and not use_pf:
-                    mins = data.min(axis=0)
-                    maxs = data.max(axis=0)
-                else:
-                    if use_pf:
-                        mins = data.min(axis=0)
-                        maxs = data.max(axis=0)
-                    else:
-                        mins = np.percentile(data, 1, axis=0)
-                        maxs = np.percentile(data, 99, axis=0)
-                spans = maxs - mins
-                pads = np.where(spans > 0, spans * 0.03, np.maximum(np.abs(mins) * 0.05, 1e-6))
-                mins = mins - pads
-                maxs = maxs + pads
-
+            limits = _compute_stable_limits(ref, front, pop)
+            if limits is not None:
+                mins, maxs = limits
                 self.ax.set_xlim(float(mins[0]), float(maxs[0]))
                 self.ax.set_ylim(float(mins[1]), float(maxs[1]))
                 if self.dim == 3:

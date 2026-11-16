@@ -1,4 +1,7 @@
 # Schaffer single-variable benchmark problem implementation for pymoo.
+# Provenance: AGtest-framework standalone problem implementation; not imported from pymoo.
+# Basis publication: J. D. Schaffer, "Multiple Objective Optimization with Vector
+# Evaluated Genetic Algorithms," ICGA, 1985.
 
 # ------------------------------------------------------------------------------------
 # Module: schaffer.py

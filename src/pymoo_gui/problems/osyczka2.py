@@ -1,4 +1,7 @@
 # Osyczka2 constrained benchmark problem implementation for pymoo.
+# Provenance: AGtest-framework standalone problem implementation; not imported from pymoo.
+# Basis publication: A. Osyczka and S. Kundu, "A New Method to Solve Generalized
+# Multicriteria Optimization Problems Using the Simple Genetic Algorithm," 1995.
 
 # ------------------------------------------------------------------------------------
 # Module: osyczka2.py

@@ -1,4 +1,7 @@
 # Tanaka constrained benchmark problem implementation for pymoo.
+# Provenance: AGtest-framework standalone problem implementation; not imported from pymoo.
+# Basis publication: M. Tanaka et al., "GA-Based Decision Support System for
+# Multicriteria Optimization," IEEE SMC, 1995.
 
 # ------------------------------------------------------------------------------------
 # Module: tanaka.py

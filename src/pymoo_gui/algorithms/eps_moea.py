@@ -1,79 +1,54 @@
-# Factory module for Platypus Eps-MOEA adapted to pymoo GUI problems.
-
+# Standalone epsilon-MOEA implementation.
+# Provenance: AGtest-framework standalone implementation; not imported from pymoo or Platypus.
 # ------------------------------------------------------------------------------------
-# Module: eps_moea.py
-# Summary: Platypus epsilon-MOEA factory and GUI metadata.
-# Implementation: pymoo problems are adapted and optimized by platypus.EpsMOEA.
-# Responsibility: adds an epsilon-dominance MOEA variant from Platypus.
+# Article: K. Deb, M. Mohan, S. Mishra, "Evaluating the epsilon-Domination Based
+#          Multi-Objective Evolutionary Algorithm...", Evolutionary Computation, 2005.
+# DOI: 10.1162/106365605774666895
+# Implementation: own Python/NumPy steady-state implementation based on the article.
 # Author: Kristina Valevska, MSc Eng.
 # ------------------------------------------------------------------------------------
-
-from __future__ import annotations
-
 from typing import Any, Dict
-
-from .platypus_common import (
-    PlatypusAlgorithmAdapter,
+import numpy as np
+from .article_algorithms_common import EpsilonArchiveAlgorithm
+from .research_common import (
     parse_epsilons,
     parse_positive_int,
     problem_n_obj,
+    sbx_crossover,
 )
 
+class EpsMOEA(EpsilonArchiveAlgorithm):
+    """Steady-state epsilon-MOEA with population and epsilon-box archive updates."""
 
-def make_eps_moea(
-    problem: Any,
-    population_size: int = 100,
-    epsilons: Any = 0.01,
-) -> PlatypusAlgorithmAdapter:
-    # Create a Platypus Eps-MOEA algorithm adapter for a pymoo problem.
-    # Args:
-    # problem (Any): pymoo problem to wrap for Platypus.
-    # population_size (int): Number of candidate solutions maintained by Eps-MOEA.
-    # epsilons (Any): Scalar or per-objective epsilon values.
-    # Returns:
-    # PlatypusAlgorithmAdapter: GUI-compatible adapter around Platypus Eps-MOEA.
-    # Raises:
-    # ValueError: If population size, objective count or epsilon values are invalid.
-    # ImportError: If `platypus-opt` is not installed.
-    n_obj = problem_n_obj(problem, "Eps-MOEA")
-    parsed_population_size = parse_positive_int(population_size, "population_size")
-    parsed_epsilons = parse_epsilons(epsilons, n_obj)
-
-    def _factory(platypus_problem: Any) -> Any:
-        # Instantiate Platypus `EpsMOEA` for an already adapted Platypus problem.
-        from platypus import EpsMOEA
-
-        return EpsMOEA(
-            platypus_problem,
-            epsilons=parsed_epsilons,
-            population_size=parsed_population_size,
+    def create_offspring(self) -> np.ndarray:
+        # The article selects one parent from the population and one from the archive.
+        assert self.state is not None
+        archive = self.archive if self.archive is not None and self.archive.X.size else self.state
+        population_parent = int(self.select()[0, 0])
+        archive_parent = int(self.random_state.integers(0, archive.X.shape[0]))
+        parents = np.vstack((self.state.X[population_parent], archive.X[archive_parent]))
+        child = sbx_crossover(
+            parents,
+            np.array([[0, 1]], dtype=int),
+            self.xl,
+            self.xu,
+            self.crossover_eta,
+            self.crossover_rate,
+            self.random_state,
         )
+        return self.mutation(child)
 
-    return PlatypusAlgorithmAdapter(problem, _factory)
-
+def make_eps_moea(problem: Any, population_size: int = 100, epsilons: Any = 0.01) -> EpsMOEA:
+    size = parse_positive_int(population_size, "population_size")
+    eps = np.asarray(parse_epsilons(epsilons, problem_n_obj(problem)), dtype=float)
+    return EpsMOEA(epsilons=eps, steady_state=True, population_size=size, archive_size=size,
+                   mutation_rate=1.0 / max(1, int(problem.n_var)))
 
 EPS_MOEA_DEFINITION: Dict[str, Any] = {
-    "label": "Eps-MOEA",
-    "factory": make_eps_moea,
+    "label": "Eps-MOEA", "factory": make_eps_moea,
     "form_fields": {
-        "population_size": {
-            "default": 100,
-            "kind": "int",
-            "minimum": 1,
-            "tooltip": "Rozmiar populacji przekazywany do EpsMOEA.",
-        },
-        "epsilons": {
-            "default": 0.01,
-            "kind": "any",
-            "tooltip": "Epsilon dla kazdego celu: skalar albo lista, np. 0.01 albo [0.01, 0.01].",
-        },
+        "population_size": {"default": 100, "kind": "int", "minimum": 1, "tooltip": "Population size."},
+        "epsilons": {"default": 0.01, "kind": "any", "tooltip": "Scalar or one epsilon per objective."},
     },
-    "form_note": "Eps-MOEA uzywa epsilon-dominance archive i dziala przez adapter problemu pymoo.",
+    "form_note": "Own Python epsilon-MOEA implementation (DOI: 10.1162/106365605774666895).",
 }
-EPS_MOEA_DEFINITION["form_fields"]["population_size"]["tooltip"] = "Population size passed to EpsMOEA."
-EPS_MOEA_DEFINITION["form_fields"]["epsilons"]["tooltip"] = (
-    "Epsilon for each objective: scalar or list, e.g. 0.01 or [0.01, 0.01]."
-)
-EPS_MOEA_DEFINITION["form_note"] = (
-    "Eps-MOEA uses an epsilon-dominance archive and runs through the pymoo problem adapter."
-)

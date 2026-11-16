@@ -16,11 +16,14 @@ Pomaga zapisac historie metryk do pliku Excel w bezpiecznie nazwanym katalogu.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
+from importlib import metadata
 from pathlib import Path
+import platform
 import re
+import subprocess
 import zipfile
-from typing import Sequence
+from typing import Mapping, Sequence
 from xml.sax.saxutils import escape
 
 
@@ -57,6 +60,140 @@ def timestamp_for_filename(now: datetime | None = None) -> str:
     return (now or datetime.now()).strftime("%Y-%m-%d_%H-%M-%S")
 
 
+def build_run_id(
+    algorithm_key: object,
+    problem_key: object,
+    seed: int,
+    now: datetime | None = None,
+) -> str:
+    """Build one filename-safe, UTC experiment identifier."""
+    instant = now or datetime.now(timezone.utc)
+    if instant.tzinfo is None:
+        instant = instant.replace(tzinfo=timezone.utc)
+    instant = instant.astimezone(timezone.utc)
+    timestamp = instant.strftime("%Y-%m-%dT%H-%M-%S")
+    if instant.microsecond:
+        timestamp += f"-{instant.microsecond:06d}"
+    timestamp += "Z"
+    algorithm = safe_filename_part(algorithm_key, "algorithm").upper()
+    problem = safe_filename_part(problem_key, "problem").upper()
+    return f"{timestamp}_{algorithm}_{problem}_seed{int(seed)}"
+
+
+def experiment_configuration_table_data(
+    configuration: Mapping[str, object],
+) -> tuple[list[str], list[list[object]]]:
+    """Convert a frozen experiment configuration to an English worksheet table."""
+    labels = {
+        "run_id": "Run ID",
+        "started_at_utc": "Started at (UTC)",
+        "execution_mode": "Execution mode",
+        "framework_name": "Framework name",
+        "framework_version": "Framework version",
+        "git_commit": "Git commit",
+        "problem_key": "Problem key",
+        "problem_name": "Problem name",
+        "algorithm_key": "Algorithm key",
+        "algorithm_name": "Algorithm name",
+        "random_seed": "Random seed",
+        "termination": "Termination",
+        "maximum_generations": "n_gen (maximum generations)",
+        "step_mode": "Step mode",
+        "hv_mode": "HV reference mode",
+        "hv_reference_point": "HV reference point entered",
+        "nondominated_export_mode": "Nondominated export mode",
+        "nondominated_export_step": "Nondominated export step",
+        "verbose": "Verbose output",
+        "parallel_evaluation": "Parallel evaluation",
+        "parallel_workers": "Parallel workers",
+        "parallel_backend": "Parallel backend",
+        "implementation_type": "Algorithm implementation type",
+        "implementation_source": "Algorithm source/reference",
+        "implementation_source_commit": "Algorithm source commit",
+        "implementation_verified_against": "Algorithm verified against",
+        "final_generation": "Final generation",
+        "final_evaluations": "Final evaluations (n_eval)",
+        "status": "Run status",
+        "hv_source": "HV configuration source",
+        "hv_normalized": "HV normalization enabled",
+        "hv_ideal": "HV frozen ideal point",
+        "hv_nadir": "HV frozen nadir point",
+        "hv_raw_reference_point": "HV raw reference point",
+        "hv_effective_reference_point": "HV effective reference point",
+        "python_version": "Python version",
+        "pymoo_version": "pymoo version",
+        "numpy_version": "NumPy version",
+        "scipy_version": "SciPy version",
+        "platypus_version": "Platypus version",
+        "scikit_learn_version": "scikit-learn version",
+    }
+    section_labels = {
+        "problem_parameters": "Problem parameter",
+        "algorithm_parameters": "Algorithm parameter",
+        "run_parameters": "Run parameter",
+    }
+
+    def value_for_cell(value: object) -> object:
+        if value is None:
+            return ""
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        if isinstance(value, (str, int, float)):
+            return value
+        try:
+            import json
+
+            return json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)
+        except (TypeError, ValueError):
+            return str(value)
+
+    rows: list[list[object]] = []
+    for key, value in configuration.items():
+        if key in section_labels and isinstance(value, Mapping):
+            prefix = section_labels[key]
+            for parameter_name in sorted(value, key=lambda item: str(item)):
+                rows.append(
+                    [f"{prefix}: {parameter_name}", value_for_cell(value[parameter_name])]
+                )
+            continue
+        rows.append([labels.get(key, str(key).replace("_", " ").title()), value_for_cell(value)])
+    return ["Setting", "Value"], rows
+
+
+def git_commit_for_path(project_root: Path) -> str:
+    """Return the repository HEAD commit, or ``unavailable`` outside a Git checkout."""
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(Path(project_root).resolve()), "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=3,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return "unavailable"
+    commit = completed.stdout.strip()
+    return commit if re.fullmatch(r"[0-9a-fA-F]{7,64}", commit) else "unavailable"
+
+
+def runtime_dependency_versions() -> dict[str, str]:
+    """Collect reproducibility-relevant interpreter and package versions."""
+    distributions = {
+        "pymoo_version": "pymoo",
+        "numpy_version": "numpy",
+        "scipy_version": "scipy",
+        "platypus_version": "platypus-opt",
+        "scikit_learn_version": "scikit-learn",
+    }
+    versions = {"python_version": platform.python_version()}
+    for field, distribution in distributions.items():
+        try:
+            versions[field] = metadata.version(distribution)
+        except metadata.PackageNotFoundError:
+            versions[field] = "unavailable"
+    return versions
+
+
 def date_for_filename(now: datetime | None = None) -> str:
     """
     EN:
@@ -73,6 +210,7 @@ def metrics_export_path(
     algorithm_name: object,
     problem_name: object,
     now: datetime | None = None,
+    run_id: object | None = None,
 ) -> Path:
     """
     EN:
@@ -83,7 +221,9 @@ def metrics_export_path(
     """
     export_dir = Path(project_root) / EXPORT_DIR_NAME
     filename = (
-        f"{safe_filename_part(algorithm_name, 'Algorithm')}_"
+        f"{safe_filename_part(run_id, 'run')}.xlsx"
+        if run_id
+        else f"{safe_filename_part(algorithm_name, 'Algorithm')}_"
         f"{safe_filename_part(problem_name, 'Problem')}_"
         f"{timestamp_for_filename(now)}.xlsx"
     )
@@ -95,6 +235,7 @@ def solutions_export_path(
     algorithm_name: object,
     problem_name: object,
     now: datetime | None = None,
+    run_id: object | None = None,
 ) -> Path:
     """
     EN:
@@ -105,7 +246,9 @@ def solutions_export_path(
     """
     export_dir = Path(project_root) / SOLUTIONS_EXPORT_DIR_NAME
     filename = (
-        f"{safe_filename_part(algorithm_name, 'Algorithm')}_"
+        f"{safe_filename_part(run_id, 'run')}.xlsx"
+        if run_id
+        else f"{safe_filename_part(algorithm_name, 'Algorithm')}_"
         f"{safe_filename_part(problem_name, 'Problem')}_"
         f"{date_for_filename(now)}.xlsx"
     )

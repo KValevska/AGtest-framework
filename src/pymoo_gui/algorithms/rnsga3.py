@@ -1,101 +1,103 @@
-# Factory module for reference-point-guided R-NSGA-III.
-
+# Standalone reference-point-based R-NSGA-III implementation.
+# Provenance: AGtest-framework standalone implementation; not imported from pymoo or Platypus.
 # ------------------------------------------------------------------------------------
-# Module: rnsga3.py
-# Summary: R-NSGA-III factory, reference-point normalization and GUI form metadata.
-# Implementation: reference points and algorithm parameters are validated before creating pymoo RNSGA3.
-# Responsibility: enables reference-point-guided optimization studies in the dissertation framework.
+# Article: Y. Vesikar, K. Deb, J. Blank, "Reference Point Based NSGA-III for
+#          Preferred Solutions", IEEE SSCI, 2018.
+# DOI: 10.1109/SSCI.2018.8628819
+# Implementation: own Python/NumPy implementation based on the article.
 # Author: Kristina Valevska, MSc Eng.
 # ------------------------------------------------------------------------------------
-
-from __future__ import annotations
-
 from typing import Any, Dict
 
 import numpy as np
-from pymoo.algorithms.moo.rnsga3 import RNSGA3
+
+from .article_algorithms_common import NSGA3Algorithm, nsga3_survival
+from .research_common import das_dennis_reference_directions, parse_positive_int, problem_n_obj
 
 
 DEFAULT_REF_POINTS = np.array([[0.3, 0.4], [0.8, 0.5]], dtype=float)
 
 
-def _problem_n_obj(problem: Any) -> int:
-    # Read and validate the number of objectives for R-NSGA-III.
-    # wymiarow co problem.
-    # Args:
-    # problem (Any): Problem object exposing `n_obj`.
-    # Returns:
-    # int: Valid objective count.
-    # Raises:
-    # ValueError: If the objective count is invalid or below 2.
-    try:
-        n_obj = int(getattr(problem, "n_obj", None))
-    except (TypeError, ValueError) as exc:
-        raise ValueError("Selected problem does not expose a valid n_obj") from exc
-    if n_obj < 2:
-        raise ValueError(f"R-NSGA-III requires at least 2 objectives, got {n_obj}")
-    return n_obj
-
-
-def _parse_positive_int(value: Any, field_name: str) -> int:
-    # Args:
-    # value (Any): Raw value to convert.
-    # field_name (str): Field name used in error messages.
-    # Returns:
-    # int: Parsed integer >= 1.
-    # Raises:
-    # ValueError: If conversion fails or the value is below 1.
-    try:
-        parsed = int(value)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"Invalid {field_name}: {value!r}") from exc
-    if parsed < 1:
-        raise ValueError(f"{field_name} must be >= 1, got {parsed}")
-    return parsed
-
-
-def _parse_non_negative_float(value: Any, field_name: str) -> float:
-    # Parse a floating-point parameter that may be zero but not negative.
-    # Args:
-    # value (Any): Raw numeric value.
-    # field_name (str): Field name for validation messages.
-    # Returns:
-    # float: Parsed non-negative value.
-    # Raises:
-    # ValueError: If conversion fails or the value is negative.
-    try:
-        parsed = float(value)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"Invalid {field_name}: {value!r}") from exc
-    if parsed < 0.0:
-        raise ValueError(f"{field_name} must be >= 0, got {parsed}")
-    return parsed
-
-
-def _normalize_ref_points(ref_points: Any, n_obj: int) -> np.ndarray:
-    # Convert reference points to a finite 2D array matching the objective count.
-    # Args:
-    # ref_points (Any): Single point or collection of reference points.
-    # n_obj (int): Expected number of objective coordinates per point.
-    # Returns:
-    # np.ndarray: Valid 2D array of reference points.
-    # Raises:
-    # ValueError: If shape, length or numeric content is invalid.
-    try:
-        points = np.asarray(ref_points, dtype=float)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"Invalid ref_points: {ref_points!r}") from exc
+def _points(value: Any, n_obj: int) -> np.ndarray:
+    points = np.asarray(value, dtype=float)
     if points.ndim == 1:
         points = points.reshape(1, -1)
-    if points.ndim != 2:
-        raise ValueError("ref_points must be a 2D array-like value")
-    if points.shape[0] == 0:
-        raise ValueError("ref_points cannot be empty")
-    if points.shape[1] != n_obj:
-        raise ValueError(f"ref_points dimension mismatch: expected {n_obj}, got {points.shape[1]}")
+    if points.ndim != 2 or points.shape[0] == 0 or points.shape[1] != n_obj:
+        raise ValueError(f"ref_points must have shape (n, {n_obj}).")
     if not np.isfinite(points).all():
-        raise ValueError("ref_points must contain only finite values")
+        raise ValueError("ref_points must contain finite values.")
     return points
+
+
+def _uniform_directions(n_obj: int, count: int) -> np.ndarray:
+    # Generate the requested number of deterministic Das-Dennis aspiration directions.
+    partitions = 1
+    directions = das_dennis_reference_directions(n_obj, partitions)
+    while directions.shape[0] < count:
+        partitions += 1
+        directions = das_dennis_reference_directions(n_obj, partitions)
+    if directions.shape[0] > count:
+        take = np.linspace(0, directions.shape[0] - 1, count).round().astype(int)
+        directions = directions[take]
+    return directions
+
+
+def _default_ref_points(n_obj: int) -> np.ndarray:
+    # Preserve the documented two-objective defaults and use one aspiration
+    # point per objective for higher-dimensional problems.
+    if int(n_obj) == 2:
+        return DEFAULT_REF_POINTS.copy()
+    return np.eye(int(n_obj), dtype=float)
+
+
+def _line_plane_intersection(point: np.ndarray) -> np.ndarray:
+    # Project the aspiration ray from the origin onto sum(f_i)=1.
+    total = float(np.sum(point))
+    if abs(total) <= 1e-12:
+        return np.full(point.size, 1.0 / point.size)
+    return point / total
+
+
+def reference_directions_from_points(
+    unit_points: np.ndarray,
+    aspiration_directions: np.ndarray,
+    mu: float,
+) -> np.ndarray:
+    # Shrink the simplex lattice and translate it around every projected aspiration point.
+    n_obj = unit_points.shape[1]
+    shrunken = float(mu) * np.asarray(aspiration_directions, dtype=float)
+    centroid = np.mean(shrunken, axis=0)
+    groups = []
+    for point in unit_points:
+        projected = _line_plane_intersection(point)
+        local = shrunken + (projected - centroid)
+        local = np.maximum(local, 0.0)
+        row_sum = np.sum(local, axis=1, keepdims=True)
+        local = np.divide(local, row_sum, out=np.full_like(local, 1.0 / n_obj), where=row_sum > 1e-15)
+        groups.append(local)
+    return np.vstack(groups + [np.eye(n_obj)])
+
+
+class RNSGA3(NSGA3Algorithm):
+    """R-NSGA-III with dynamically normalized aspiration-point reference directions."""
+
+    def __init__(self, ref_points: np.ndarray, aspiration_directions: np.ndarray, mu: float, **kwargs):
+        super().__init__(**kwargs)
+        self.ref_points = np.asarray(ref_points, dtype=float)
+        self.aspiration_directions = np.asarray(aspiration_directions, dtype=float)
+        self.mu = float(mu)
+
+    def environmental_selection(self, X, F, CV, n_survive):
+        # Normalize aspiration points with the current objective range, then perform NSGA-III niching.
+        combined = np.vstack((F, self.ref_points))
+        ideal = np.min(combined, axis=0)
+        nadir = np.max(combined, axis=0)
+        span = np.where(nadir > ideal, nadir - ideal, 1.0)
+        unit_points = (self.ref_points - ideal) / span
+        self.reference_directions = reference_directions_from_points(
+            unit_points, self.aspiration_directions, self.mu
+        )
+        return nsga3_survival(X, F, CV, n_survive, self.reference_directions, self.random_state)
 
 
 def make_rnsga3(
@@ -104,22 +106,22 @@ def make_rnsga3(
     pop_per_ref_point: int = 50,
     mu: float = 0.1,
 ) -> RNSGA3:
-    # Create a pymoo `RNSGA3` instance with validated reference points.
-    # Args:
-    # problem (Any): Problem used to determine objective count.
-    # ref_points (Any): Reference points guiding the search.
-    # pop_per_ref_point (int): Number of individuals assigned to each reference point.
-    # mu (float): R-NSGA-III niching parameter.
-    # Returns:
-    # RNSGA3: Configured pymoo R-NSGA-III algorithm.
-    # Raises:
-    # ValueError: If problem metadata, reference points or parameters are invalid.
-    n_obj = _problem_n_obj(problem)
-    points = DEFAULT_REF_POINTS if ref_points is None else ref_points
+    n_obj = problem_n_obj(problem)
+    points = _points(_default_ref_points(n_obj) if ref_points is None else ref_points, n_obj)
+    count = parse_positive_int(pop_per_ref_point, "pop_per_ref_point")
+    mu = float(mu)
+    if not 0.0 <= mu <= 1.0:
+        raise ValueError("mu must be in [0, 1].")
+    aspiration_directions = _uniform_directions(n_obj, count)
+    population_size = points.shape[0] * aspiration_directions.shape[0] + n_obj
     return RNSGA3(
-        ref_points=_normalize_ref_points(points, n_obj),
-        pop_per_ref_point=_parse_positive_int(pop_per_ref_point, "pop_per_ref_point"),
-        mu=_parse_non_negative_float(mu, "mu"),
+        ref_points=points,
+        aspiration_directions=aspiration_directions,
+        mu=mu,
+        population_size=population_size,
+        archive_size=population_size,
+        reference_directions=np.eye(n_obj),
+        mutation_rate=1.0 / max(1, int(problem.n_var)),
     )
 
 
@@ -127,23 +129,9 @@ RNSGA3_DEFINITION: Dict[str, Any] = {
     "label": "R-NSGA-III",
     "factory": make_rnsga3,
     "form_fields": {
-        "ref_points": {
-            "default": DEFAULT_REF_POINTS.tolist(),
-            "kind": "any",
-            "tooltip": "Punkty odniesienia, np. [[0.3, 0.4], [0.8, 0.5]].",
-        },
-        "pop_per_ref_point": {
-            "default": 50,
-            "kind": "int",
-            "minimum": 1,
-            "tooltip": "Liczba osobnikow na punkt odniesienia.",
-        },
-        "mu": {"default": 0.1, "kind": "float", "minimum": 0.0, "tooltip": "Parametr mu."},
+        "ref_points": {"default": None, "kind": "any", "tooltip": "Aspiration points; leave empty to generate defaults matching the objective count."},
+        "pop_per_ref_point": {"default": 50, "kind": "int", "minimum": 1, "tooltip": "Reference directions per aspiration point."},
+        "mu": {"default": 0.1, "kind": "float", "minimum": 0.0, "maximum": 1.0, "tooltip": "Simplex-lattice shrinkage factor."},
     },
-    "form_note": "R-NSGA-III uses reference points consistent with the number of objectives of the problem.",
+    "form_note": "Own Python implementation of R-NSGA-III (DOI: 10.1109/SSCI.2018.8628819).",
 }
-RNSGA3_DEFINITION["form_fields"]["ref_points"]["tooltip"] = (
-    "Reference points, e.g. [[0.3, 0.4], [0.8, 0.5]]."
-)
-RNSGA3_DEFINITION["form_fields"]["pop_per_ref_point"]["tooltip"] = "Number of individuals per reference point."
-RNSGA3_DEFINITION["form_fields"]["mu"]["tooltip"] = "Mu parameter."

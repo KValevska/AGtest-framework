@@ -1,4 +1,5 @@
 # LMOEA-DS implementation and GUI factory definition.
+# Provenance: AGtest-framework standalone implementation; not imported from pymoo or Platypus.
 #
 # ------------------------------------------------------------------------------------
 # Module: lmoea_ds.py

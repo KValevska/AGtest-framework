@@ -1,4 +1,7 @@
 # Viennet3 benchmark problem implementation for pymoo.( 3 criterion)
+# Provenance: AGtest-framework standalone problem implementation; not imported from pymoo.
+# Basis publication: R. Viennet, C. Fonteix and I. Marc, "Multicriteria Optimization
+# Using a Genetic Algorithm for Determining a Pareto Set," IJSS 27(2), 1996.
 
 # ------------------------------------------------------------------------------------
 # Module: viennet3.py

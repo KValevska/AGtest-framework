@@ -1,4 +1,7 @@
 # Fonseca benchmark problem implementation for pymoo.
+# Provenance: AGtest-framework standalone problem implementation; not imported from pymoo.
+# Basis publication: C. M. Fonseca and P. J. Fleming, "An Overview of Evolutionary
+# Algorithms in Multiobjective Optimization," Evolutionary Computation 3(1), 1995.
 
 # ------------------------------------------------------------------------------------
 # Module: fonseca.py

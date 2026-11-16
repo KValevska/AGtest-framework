@@ -1,4 +1,7 @@
 # Binh2 constrained benchmark problem implementation for pymoo.
+# Provenance: AGtest-framework standalone problem implementation; not imported from pymoo.
+# Basis publication: T. T. Binh and U. Korn, "MOBES: A Multiobjective Evolution
+# Strategy for Constrained Optimization Problems," 1997.
 
 # ------------------------------------------------------------------------------------
 # Module: binh2.py

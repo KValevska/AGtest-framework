@@ -1,4 +1,8 @@
 # Water resource planning benchmark problem implementation for pymoo. (5 criterion)
+# Provenance: AGtest-framework standalone problem implementation; not imported from pymoo.
+# Basis publication: T. Ray, K. M. Tai and K. C. Seow, "Multiobjective Design
+# Optimization by an Evolutionary Algorithm," Engineering Optimization 33(4),
+# 2001, DOI: 10.1080/03052150108940926.
 
 # ------------------------------------------------------------------------------------
 # Module: water.py

@@ -1,4 +1,7 @@
 # Kursawe benchmark problem implementation for pymoo.
+# Provenance: AGtest-framework standalone problem implementation; not imported from pymoo.
+# Basis publication: F. Kursawe, "A Variant of Evolution Strategies for Vector
+# Optimization," Parallel Problem Solving from Nature, 1991.
 
 # ------------------------------------------------------------------------------------
 # Module: kursawe.py

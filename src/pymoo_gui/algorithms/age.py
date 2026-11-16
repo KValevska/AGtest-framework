@@ -1,9 +1,12 @@
 # Classic AGE-MOEA implementation integrated with the GUI registry.
+# Provenance: AGtest-framework standalone implementation; not imported from pymoo or Platypus.
 
 # ------------------------------------------------------------------------------------
 # Module: age.py
-# Summary: AGE-MOEA survival, algorithm class and GUI factory definition.
-# Implementation: AGE-MOEA estimates Pareto-front geometry and uses it for survival.
+# Article: A. Panichella, "An Adaptive Evolutionary Algorithm based on Non-Euclidean
+#          Geometry for Many-objective Optimization", GECCO, 2019.
+# DOI: 10.1145/3321707.3321839
+# Implementation: own Python/NumPy implementation based on the article.
 # Responsibility: adds the classic adaptive-geometry AGE optimizer.
 # Author: Kristina Valevska, MSc Eng.
 # ------------------------------------------------------------------------------------
@@ -13,17 +16,14 @@ from __future__ import annotations
 from typing import Any, Dict, Optional
 
 import numpy as np
-from pymoo.algorithms.base.genetic import GeneticAlgorithm
-from pymoo.algorithms.moo.nsga2 import binary_tournament
-from pymoo.core.survival import Survival
-from pymoo.operators.crossover.sbx import SBX
-from pymoo.operators.mutation.pm import PM
-from pymoo.operators.sampling.rnd import FloatRandomSampling
-from pymoo.operators.selection.tournament import TournamentSelection
-from pymoo.termination.default import DefaultMultiObjectiveTermination
-from pymoo.util.display.multi import MultiObjectiveOutput
-from pymoo.util.misc import has_feasible
-from pymoo.util.nds.non_dominated_sorting import NonDominatedSorting
+
+from .research_common import (
+    PopulationState,
+    ResearchMOOAlgorithm,
+    assign_rank_and_crowding,
+    feasible_mask,
+    non_dominated_fronts,
+)
 
 
 def _parse_positive_int(value: Any, field_name: str) -> int:
@@ -101,19 +101,18 @@ def normalize(front: np.ndarray, extreme: np.ndarray) -> tuple[np.ndarray, np.nd
     return front / normalization, normalization
 
 
-class AGEMOEASurvival(Survival):
+class AGEMOEASurvival:
     # Environmental selection for classic AGE-MOEA.
 
     def __init__(self) -> None:
         # Initialize non-dominated sorting used by AGE-MOEA survival.
-        super().__init__(filter_infeasible=True)
-        self.nds = NonDominatedSorting()
+        pass
 
     def _do(self, problem, pop, *args, n_survive=None, **kwargs):
         # Select survivors by rank and adaptive-geometry crowding score.
         F = np.asarray(pop.get("F"), dtype=float)
         n_survive = len(pop) if n_survive is None else int(n_survive)
-        fronts = self.nds.do(F, n_stop_if_ranked=n_survive)
+        fronts = non_dominated_fronts(F)
 
         max_rank = np.iinfo(int).max
         front_no = np.full(F.shape[0], max_rank, dtype=int)
@@ -227,44 +226,52 @@ class AGEMOEASurvival(Survival):
         return distances
 
 
-class AGE(GeneticAlgorithm):
+class AGE(ResearchMOOAlgorithm):
     # Classic adaptive-geometry AGE-MOEA algorithm.
 
     def __init__(
         self,
         pop_size: int = 100,
-        sampling=FloatRandomSampling(),
-        selection=TournamentSelection(func_comp=binary_tournament),
-        crossover=SBX(eta=15, prob=0.9),
-        mutation=PM(eta=20),
-        eliminate_duplicates: bool = True,
         n_offsprings: Optional[int] = None,
-        output=MultiObjectiveOutput(),
         **kwargs,
     ):
-        # Configure AGE-MOEA with pymoo-compatible genetic operators.
-        super().__init__(
-            pop_size=_parse_positive_int(pop_size, "pop_size"),
-            sampling=sampling,
-            selection=selection,
-            crossover=crossover,
-            mutation=mutation,
-            survival=AGEMOEASurvival(),
-            eliminate_duplicates=eliminate_duplicates,
-            n_offsprings=_parse_optional_positive_int(n_offsprings, "n_offsprings"),
-            output=output,
-            advance_after_initial_infill=True,
-            **kwargs,
-        )
-        self.default_termination = DefaultMultiObjectiveTermination()
-        self.tournament_type = "comp_by_rank_and_crowding"
+        size = _parse_positive_int(pop_size, "pop_size")
+        super().__init__(population_size=size, archive_size=size, **kwargs)
+        self.n_offsprings = _parse_optional_positive_int(n_offsprings, "n_offsprings") or size
+        self.age_survival = AGEMOEASurvival()
 
-    def _set_optimum(self, **kwargs):
-        # Expose feasible rank-zero solutions as the current optimum.
-        if not has_feasible(self.pop):
-            self.opt = self.pop[[np.argmin(self.pop.get("CV"))]]
-        else:
-            self.opt = self.pop[self.pop.get("rank") == 0]
+    def create_offspring(self) -> np.ndarray:
+        offspring = super().create_offspring()
+        return offspring[: self.n_offsprings]
+
+    def environmental_selection(self, X, F, CV, n_survive):
+        feasible = np.flatnonzero(feasible_mask(CV))
+        chosen: list[int] = []
+        if feasible.size:
+            fronts = non_dominated_fronts(F[feasible])
+            front_ids = np.full(feasible.size, np.iinfo(int).max, dtype=int)
+            scores = np.zeros(feasible.size, dtype=float)
+            first = F[feasible[fronts[0]]]
+            ideal = np.min(first, axis=0)
+            first_scores, p_norm, normalization = self.age_survival.survival_score(first, ideal)
+            for rank, front in enumerate(fronts):
+                front_ids[front] = rank
+                if rank == 0:
+                    scores[front] = first_scores
+                else:
+                    normalized = (F[feasible[front]] - ideal) / normalization
+                    distances = self.age_survival.minkowski_distances(
+                        normalized, np.zeros((1, F.shape[1])), p_norm
+                    ).ravel()
+                    scores[front] = 1.0 / np.maximum(distances, 1e-8)
+            order = np.lexsort((-scores, front_ids))
+            chosen.extend(feasible[order[:n_survive]].tolist())
+        if len(chosen) < n_survive:
+            infeasible = np.flatnonzero(~feasible_mask(CV))
+            chosen.extend(infeasible[np.argsort(CV[infeasible])[: n_survive - len(chosen)]].tolist())
+        ids = np.asarray(chosen, dtype=int)
+        rank, crowding = assign_rank_and_crowding(F[ids], CV[ids])
+        return PopulationState(X[ids], F[ids], CV[ids], rank, crowding)
 
 
 def make_age(pop_size: int = 100, n_offsprings: Optional[int] = None) -> AGE:
@@ -283,12 +290,12 @@ AGE_DEFINITION: Dict[str, Any] = {
             "default": 100,
             "kind": "int",
             "minimum": 1,
-            "tooltip": "Rozmiar populacji AGE-MOEA.",
+            "tooltip": "Population size for AGE-MOEA.",
         },
         "n_offsprings": {
             "default": None,
             "kind": "any",
-            "tooltip": "Liczba potomkow; None oznacza domyslna liczbe rowna pop_size.",
+            "tooltip": "Offspring count; None uses pop_size.",
         },
     },
     "form_note": "Klasyczny AGE-MOEA: non-dominated sorting i adaptacyjna geometria frontu.",

@@ -1,4 +1,5 @@
 # Public exports for benchmark problem classes and problem registry factories.
+# Provenance: AGtest-framework infrastructure re-exporting local, pymoo-backed and Platypus-backed problems.
 
 # ------------------------------------------------------------------------------------
 # Module: __init__.py
@@ -49,6 +50,9 @@ from .viennet2 import Viennet2Problem
 from .viennet3 import Viennet3Problem
 from .water import WaterProblem
 from .wfg import default_wfg_n_var, make_wfg_problem
+from .discrete import IntegerPortfolioProblem, MixedDesignProblem, ZDT5Problem
+from .dynamic import DynamicDFProblem
+from .extended_continuous import ConstrainedDTLZProblem, DASCMOPProblem, LocalDTLZProblem, MMF1Problem
 
 __all__ = [
     "PROBLEMS",
@@ -90,4 +94,12 @@ __all__ = [
     "make_schaffer",
     "make_wfg_problem",
     "make_zdt5",
+    "ZDT5Problem",
+    "IntegerPortfolioProblem",
+    "MixedDesignProblem",
+    "DynamicDFProblem",
+    "LocalDTLZProblem",
+    "ConstrainedDTLZProblem",
+    "DASCMOPProblem",
+    "MMF1Problem",
 ]

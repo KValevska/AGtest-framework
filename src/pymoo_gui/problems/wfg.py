@@ -1,4 +1,9 @@
 # WFG family factory helpers for pymoo.
+# Provenance: pymoo library-backed problem implementation; AGtest-framework supplies
+#             validation, defaults, registry metadata and reference-front integration.
+# Basis publication: S. Huband et al., "A Review of Multiobjective Test Problems
+# and a Scalable Test Problem Toolkit," IEEE TEVC 10(5), 2006,
+# DOI: 10.1109/TEVC.2005.861417.
 
 # ------------------------------------------------------------------------------------
 # Module: wfg.py

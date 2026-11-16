@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import ast
 import inspect
+import json
 import math
 import os
 import re
@@ -19,7 +20,7 @@ import sys
 import threading
 import zipfile
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
 
@@ -87,16 +88,27 @@ if __package__ in (None, ""):
         sys.path.insert(0, str(_src_root))
     __package__ = "pymoo_gui"
 
-from .algorithms import ALGORITHMS, known_pareto_front, make_generation_callback, minimize
+from .algorithms import (
+    ALGORITHMS,
+    known_pareto_front,
+    make_generation_callback,
+    minimize,
+    validate_algorithm_problem,
+)
 from . import __version__
 from .metrics import (
     METRIC_DISPLAY_ORDER,
     METRIC_LABELS,
     METRIC_TABLE_ORDER,
+    build_run_id,
+    experiment_configuration_table_data,
+    git_commit_for_path,
+    get_hv_ref_point,
+    resolve_hv_config,
     metrics_export_path,
     next_available_export_path,
+    runtime_dependency_versions,
     solutions_export_path,
-    write_xlsx_table,
     write_xlsx_workbook,
 )
 from .multi import MultiExperimentWorker, build_multi_run_specs
@@ -221,102 +233,109 @@ RUN_FORM_FIELDS["parallel_backend"]["tooltip"] = (
     "process = multiprocessing; thread = ThreadPool with lower overhead."
 )
 
+
 UI_TEXT_REPLACEMENTS = {
-    "Brak wykresu - uruchom optymalizacjÄ™": "No plot available. Start an optimization run.",
-    "RÄ™czny ref point": "Manual ref point",
+    "Brak wykresu - uruchom optymalizacje": "No plot available. Start an optimization run.",
+    "Reczny ref point": "Manual ref point",
     "HV ref point (aktywny): -": "HV ref point (active): -",
     "Aktualizuj wykres w trakcie": "Update plot during run",
-    "PokaĹĽ populacjÄ™": "Show population",
-    "Zapis rozwiÄ…zaĹ„ niezdominowanych": "Nondominated solution export",
+    "Pokaz populacje": "Show population",
+    "Zapis rozwiazan niezdominowanych": "Nondominated solution export",
     "Konsola": "Console",
     "Ukryj konsole": "Hide console",
     "Pokaz konsole": "Show console",
     "Status: bezczynny": "Status: idle",
-    "Tryb zapisu rozwiÄ…zaĹ„ niezdominowanych jest niepoprawny.": "Invalid nondominated-solution export mode.",
-    "Nie moĹĽna przygotowaÄ‡ podglÄ…du Pareto.": "Unable to prepare the Pareto preview.",
+    "Tryb zapisu rozwiazan niezdominowanych jest niepoprawny.": "Invalid nondominated-solution export mode.",
+    "Nie mozna przygotowac podgladu Pareto.": "Unable to prepare the Pareto preview.",
     "Podaj ref_point albo wybierz tryb Auto.": "Enter a ref_point or switch to Auto mode.",
-    "Start: uruchomienie juĹĽ trwa.": "Start: a run is already in progress.",
-    "BĹ‚Ä™dny ref point": "Invalid ref point",
+    "Start: uruchomienie juz trwa.": "Start: a run is already in progress.",
+    "Bledny ref point": "Invalid ref point",
     "Niepoprawny ref_point.": "Invalid ref_point.",
     "HV ref_point: start zablokowany.": "HV ref_point: start blocked.",
     "Brak konfiguracji": "Missing configuration",
     "Wybierz problem i algorytm przed uruchomieniem.": "Select a problem and an algorithm before starting the run.",
     "Start: brak wybranego problemu lub algorytmu.": "Start: no problem or algorithm is selected.",
-    "BĹ‚Ä™dne dane wejĹ›ciowe": "Invalid input data",
-    "BĹ‚Ä™dne ustawienia zapisu": "Invalid export settings",
-    "BĹ‚Ä™dne dane algorytmu": "Invalid algorithm data",
-    "BĹ‚Ä™dne dane problemu": "Invalid problem data",
-    "dziaĹ‚a": "running",
-    "zakoĹ„czono": "completed",
+    "Bledne dane wejsciowe": "Invalid input data",
+    "Bledne ustawienia zapisu": "Invalid export settings",
+    "Bledne dane algorytmu": "Invalid algorithm data",
+    "Bledne dane problemu": "Invalid problem data",
+    "dziala": "running",
+    "zakonczono": "completed",
     "zatrzymano": "stopped",
-    "bĹ‚Ä…d": "error",
+    "blad": "error",
     "Stop: brak aktywnego uruchomienia.": "Stop: no active run.",
     "Status: zatrzymywanie": "Status: stopping",
-    "Stop: wysĹ‚ano zadanie zatrzymania; oczekiwanie na zakoĹ„czenie bieĹĽÄ…cej generacji.": (
+    "Stop: wyslano zadanie zatrzymania; oczekiwanie na zakonczenie biezacej generacji.": (
         "Stop: cancellation requested; waiting for the current generation to finish."
     ),
-    "BĹ‚Ä…d optymalizacji": "Optimization error",
-    "Eksport metryk pominiÄ™ty: tabela historii jest pusta.": "Metrics export skipped: the history table is empty.",
-    "RozwiÄ…zania": "Solutions",
+    "Blad optymalizacji": "Optimization error",
+    "Eksport metryk pominiety: tabela historii jest pusta.": "Metrics export skipped: the history table is empty.",
+    "Rozwiazania": "Solutions",
 }
+
 
 
 def translate_ui_text(text: Any) -> str:
     # Translate user-visible GUI text to English.
     out = "" if text is None else str(text)
     out = UI_TEXT_REPLACEMENTS.get(out, out)
+
     replacements = (
-        ("WĹ‚Ä…cza odĹ›wieĹĽanie wykresu Pareto w trakcie kolejnych generacji.", "Refresh the Pareto plot after each generation."),
-        ("Pokazuje lub ukrywa peĹ‚nÄ… populacjÄ™ na wykresie Pareto.", "Show or hide the full population in the Pareto plot."),
+        ("Wlacza odswiezanie wykresu Pareto w trakcie kolejnych generacji.", "Refresh the Pareto plot after each generation."),
+        ("Pokazuje lub ukrywa pelna populacje na wykresie Pareto.", "Show or hide the full population in the Pareto plot."),
         (
-            "Ukrywa znany front Pareto, ale nie usuwa go z danych uĹĽywanych przez metryki.",
+            "Ukrywa znany front Pareto, ale nie usuwa go z danych uzywanych przez metryki.",
             "Hide the Pareto front without removing it from the data used by the metrics.",
         ),
         (
-            "Jednorazowo dopasowuje zakres osi dla aktualnego widoku Pareto, bez przeliczania przy kaĹĽdej generacji.",
+            "Jednorazowo dopasowuje zakres osi dla aktualnego widoku Pareto, bez przeliczania przy kazdej generacji.",
             "Fit the axis ranges for the current Pareto view without recomputing them on every generation.",
         ),
-        ("Wybiera, dla ktĂłrych epok zapisywaÄ‡ front niezdominowany.", "Choose for which epochs the nondominated front should be saved."),
-        ("Dodatnia liczba caĹ‚kowita uĹĽywana tylko w trybie 'Co N epok'.", "Positive integer used only in the 'Every N epochs' mode."),
+        ("Wybiera, dla ktorych epok zapisywac front niezdominowany.", "Choose for which epochs the nondominated front should be saved."),
+        ("Dodatnia liczba calkowita uzywana tylko w trybie 'Co N epok'.", "Positive integer used only in the 'Every N epochs' mode."),
         ("show_population={checked} (pelna populacja jako osobna warstwa)", "show_population={checked} (full population as a separate layer)"),
-        ("Dla liczb z przecinkiem oddziel wymiary spacjÄ… lub ';', np. '0,6 0,7'.", "For decimal commas, separate dimensions with spaces or ';', e.g. '0,6 0,7'."),
+        ("Dla liczb z przecinkiem oddziel wymiary spacja lub ';', np. '0,6 0,7'.", "For decimal commas, separate dimensions with spaces or ';', e.g. '0,6 0,7'."),
         ("HV ref point (aktywny): INVALID", "HV ref point (active): INVALID"),
         ("HV ref point (aktywny): [", "HV ref point (active): ["),
-        ("PodglÄ…d Pareto niedostÄ™pny dla ", "Pareto preview is unavailable for "),
-        (" celĂłw. Gen=", " objectives. Gen="),
-        ("Eksport metryk nie powiĂłdĹ‚ siÄ™: ", "Metrics export failed: "),
+        ("Podglad Pareto niedostepny dla ", "Pareto preview is unavailable for "),
+        (" celow. Gen=", " objectives. Gen="),
+        ("Eksport metryk nie powiodl sie: ", "Metrics export failed: "),
         ("Eksport metryk zapisany: ", "Metrics export saved: "),
         ("Epoka ", "Epoch "),
-        ("Eksport punktĂłw niezdominowanych nie powiĂłdĹ‚ siÄ™: ", "Nondominated-point export failed: "),
-        ("Eksport punktĂłw niezdominowanych nie utworzyĹ‚ pliku: ", "Nondominated-point export did not create a file: "),
+        ("Eksport punktow niezdominowanych nie powiodl sie: ", "Nondominated-point export failed: "),
+        ("Eksport punktow niezdominowanych nie utworzyl pliku: ", "Nondominated-point export did not create a file: "),
         ("Utworzony plik Excel z punktami niezdominowanymi: ", "Created Excel file with nondominated points: "),
-        ("Liczba zapisanych punktĂłw: ", "Number of saved points: "),
-        ("Dane pochodzÄ… z uruchomienia: ", "Data source run: "),
-        ("Eksport punktĂłw niezdominowanych dla epoki ", "Nondominated-point export for epoch "),
-        (" nie powiĂłdĹ‚ siÄ™: ", " failed: "),
+        ("Liczba zapisanych punktow: ", "Number of saved points: "),
+        ("Dane pochodza z uruchomienia: ", "Data source run: "),
+        ("Eksport punktow niezdominowanych dla epoki ", "Nondominated-point export for epoch "),
+        (" nie powiodl sie: ", " failed: "),
         ("Zapisano punkty niezdominowane w arkuszu dla epoki ", "Saved nondominated points in the worksheet for epoch "),
-        ("Eksport punktĂłw niezdominowanych dla ostatniej epoki ", "Nondominated-point export for the final epoch "),
+        ("Eksport punktow niezdominowanych dla ostatniej epoki ", "Nondominated-point export for the final epoch "),
         ("Zapisano punkty niezdominowane dla ostatniej epoki ", "Saved nondominated points for the final epoch "),
-        (": brak poprawnej liczby caĹ‚kowitej.", ": invalid integer value."),
-        (": wartoĹ›Ä‡ musi byÄ‡ >= ", ": value must be >= "),
+        (": brak poprawnej liczby calkowitej.", ": invalid integer value."),
+        (": wartosc musi byc >= ", ": value must be >= "),
         ("Liczba generacji", "Number of generations"),
-        ("Liczba workerĂłw", "Number of workers"),
-        ("Backend rĂłwnolegĹ‚y: nieobsĹ‚ugiwana wartoĹ›Ä‡ ", "Parallel backend: unsupported value "),
+        ("Liczba workerow", "Number of workers"),
+        ("Backend rownolegly: nieobslugiwana wartosc ", "Parallel backend: unsupported value "),
         ("Rozmiar populacji", "Population size"),
-        ("ref_point ma dĹ‚ugoĹ›Ä‡ ", "ref_point has length "),
+        ("ref_point ma dlugosc ", "ref_point has length "),
         (", oczekiwano M=", "; expected M="),
-        ("Nie moĹĽna odczytaÄ‡ liczby '", "Unable to parse the number '"),
-        ("'. UĹĽyj np. '0,6 0,7' albo '0.6,0.7'.", "'. Use, for example, '0,6 0,7' or '0.6,0.7'."),
+        ("Nie mozna odczytac liczby '", "Unable to parse the number '"),
+        ("'. Uzyj np. '0,6 0,7' albo '0.6,0.7'.", "'. Use, for example, '0,6 0,7' or '0.6,0.7'."),
         ("Brak poprawnego factory problemu.", "No valid problem factory is available."),
     )
+
     for source, target in replacements:
         out = out.replace(source, target)
+
     out = re.sub(
-        r"PodglÄ…d Pareto jest dostÄ™pny tylko dla 2 lub 3 celĂłw\. Wybrany problem ma ([^.]*)\.",
+        r"Podglad Pareto jest dostepny tylko dla 2 lub 3 celow\. Wybrany problem ma ([^.]*)\.",
         r"Pareto preview is available only for 2 or 3 objectives. The selected problem has \1.",
         out,
     )
+
     return out
+
 
 
 def pl_param_label(name: str) -> str:
@@ -617,6 +636,7 @@ class OptimizationWorker(QThread):
         parallel_backend: str = "process",
         parent=None,
         step_mode: bool = False,
+        hv_mode: str = "auto",
     ):
         # Store all configuration needed for one optimization run.
         super().__init__(parent)
@@ -628,6 +648,7 @@ class OptimizationWorker(QThread):
         self._seed = int(seed)
         self._verbose = bool(verbose)
         self._hv_ref_point = hv_ref_point
+        self._hv_mode = str(hv_mode).lower()
         self._parallel_eval = bool(parallel_eval)
         self._parallel_workers = int(parallel_workers)
         self._parallel_backend = str(parallel_backend)
@@ -686,6 +707,12 @@ class OptimizationWorker(QThread):
             known_pf = None
             if callable(known_pf_factory):
                 known_pf = known_pf_factory(problem)
+            hv_config = resolve_hv_config(
+                str(problem_entry.get("label", self._problem_key)),
+                int(getattr(problem, "n_obj", 0)),
+                pareto_front=known_pf,
+                manual_ref_point=self._hv_ref_point if self._hv_mode == "manual" else None,
+            )
             if self._parallel_eval:
                 problem = make_parallel_problem(
                     problem,
@@ -694,6 +721,7 @@ class OptimizationWorker(QThread):
                 )
 
             algorithm_entry = ALGORITHMS[self._alg_key]
+            validate_algorithm_problem(algorithm_entry, problem)
             algorithm_factory = algorithm_entry["factory"]
             algorithm_params = dict(self._algorithm_params)
             algorithm_params["problem"] = problem
@@ -706,6 +734,7 @@ class OptimizationWorker(QThread):
                 hv_ref_point=self._hv_ref_point,
                 known_pf=known_pf,
                 algorithm_key=self._alg_key,
+                hv_config=hv_config,
             )
             termination = ("n_gen", self._n_gen) if self._n_gen is not None else NoTermination()
             minimize(problem, algorithm, termination, seed=self._seed, verbose=self._verbose, callback=callback)
@@ -750,14 +779,16 @@ class MainWindow(QMainWindow):
         self._run_nd_save_step = 1
         self._run_metrics_export_path: Optional[Path] = None
         self._run_solutions_export_path: Optional[Path] = None
+        self._run_hv_config: Optional[dict[str, Any]] = None
+        self._run_id: Optional[str] = None
+        self._run_configuration: Optional[dict[str, Any]] = None
         self._nd_solution_sheets: dict[int, tuple[list[str], list[list[object]]]] = {}
         self._square_geometry_applied = False
         self._build_ui()
         self._apply_english_ui_texts()
         self._connect_signals()
         self._configure_placeholders()
-        self._rebuild_problem_form()
-        self._rebuild_alg_form()
+        self._on_algorithm_changed()
         self._update_hv_ref_point_label()
         self._update_plot_status()
         self._update_run_button_state()
@@ -895,10 +926,11 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.multi_status_lbl)
 
         self.multi_results_table = QTableWidget()
-        self.multi_results_table.setColumnCount(10)
+        self.multi_results_table.setColumnCount(11)
         self.multi_results_table.setHorizontalHeaderLabels(
             [
                 "#",
+                "Run ID",
                 "Problem",
                 "Algorithm",
                 "Status",
@@ -915,7 +947,7 @@ class MainWindow(QMainWindow):
         self.multi_results_table.setSelectionMode(QAbstractItemView.SingleSelection)
         multi_header = self.multi_results_table.horizontalHeader()
         multi_header.setSectionResizeMode(QHeaderView.ResizeToContents)
-        for column in (1, 2, 7, 8, 9):
+        for column in (1, 2, 3, 8, 9, 10):
             multi_header.setSectionResizeMode(column, QHeaderView.Stretch)
         layout.addWidget(self.multi_results_table, 2)
 
@@ -952,7 +984,7 @@ class MainWindow(QMainWindow):
         panel.setMinimumWidth(440)
         panel.setMaximumWidth(440)
         self._left = QVBoxLayout(panel)
-        self._build_problem_controls()
+        self._build_algorithm_problem_controls()
         self._build_hv_controls()
         self._build_run_controls()
         self._build_console()
@@ -1021,24 +1053,22 @@ class MainWindow(QMainWindow):
         panel.setStretchFactor(1, 1)
         return panel
 
-    def _build_problem_controls(self) -> None:
-        # Add problem and algorithm selectors with their dynamic parameter forms.
-        self.problem_combo = QComboBox()
-        for key, entry in PROBLEMS.items():
-            self.problem_combo.addItem(entry.get("label", key), userData=key)
-        self.problem_form = ParamForm("Problem parameters")
-
+    def _build_algorithm_problem_controls(self) -> None:
+        # Add the algorithm selector first, followed by its compatible problem selector.
         self.alg_combo = QComboBox()
         for key, entry in ALGORITHMS.items():
             self.alg_combo.addItem(entry.get("label", key), userData=key)
         self.alg_form = ParamForm("Algorithm parameters")
 
-        self._left.addWidget(QLabel("Problem:"))
-        self._left.addWidget(self.problem_combo)
-        self._left.addWidget(self.problem_form)
+        self.problem_combo = QComboBox()
+        self.problem_form = ParamForm("Problem parameters")
+
         self._left.addWidget(QLabel("Algorithm:"))
         self._left.addWidget(self.alg_combo)
         self._left.addWidget(self.alg_form)
+        self._left.addWidget(QLabel("Problem:"))
+        self._left.addWidget(self.problem_combo)
+        self._left.addWidget(self.problem_form)
 
     def _build_hv_controls(self) -> None:
         # Build controls for automatic or manual hypervolume reference points.
@@ -1103,8 +1133,12 @@ class MainWindow(QMainWindow):
         self._left.addLayout(button_row)
 
         self.status_lbl = QLabel("Status: idle")
+        self.run_id_lbl = QLabel("Run ID: -")
+        self.run_id_lbl.setWordWrap(True)
+        self.run_id_lbl.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.metrics_lbl = QLabel(self._metrics_label_text({}))
         self._left.addWidget(self.status_lbl)
+        self._left.addWidget(self.run_id_lbl)
         self._left.addWidget(self.metrics_lbl)
         self._left.addStretch(1)
 
@@ -1121,7 +1155,7 @@ class MainWindow(QMainWindow):
     def _connect_signals(self) -> None:
         # Connect Qt widget signals to their event handlers.
         self.problem_combo.currentIndexChanged.connect(self._rebuild_problem_form)
-        self.alg_combo.currentIndexChanged.connect(self._rebuild_alg_form)
+        self.alg_combo.currentIndexChanged.connect(self._on_algorithm_changed)
         self.hv_auto_radio.toggled.connect(self._on_hv_mode_changed)
         self.hv_manual_radio.toggled.connect(self._on_hv_mode_changed)
         self.hv_manual_edit.textChanged.connect(self._on_hv_manual_changed)
@@ -1244,6 +1278,7 @@ class MainWindow(QMainWindow):
         self._multi_result_rows[self._multi_row_key(payload)] = row
         values = [
             payload.get("run_index"),
+            payload.get("run_id"),
             payload.get("problem_name"),
             payload.get("algorithm_name"),
             "running",
@@ -1258,16 +1293,17 @@ class MainWindow(QMainWindow):
             self._set_multi_table_value(row, column, value)
         self.multi_log.append(
             f"Run {payload.get('run_index')}/{payload.get('total_runs')} started: "
-            f"{payload.get('algorithm_name')} on {payload.get('problem_name')}."
+            f"{payload.get('algorithm_name')} on {payload.get('problem_name')} "
+            f"[run_id={payload.get('run_id')}]."
         )
 
     def _on_multi_run_progress(self, payload: Mapping[str, Any]) -> None:
         # Update generation counters without creating any graphical visualization.
         row = self._multi_result_rows.get(self._multi_row_key(payload))
         if row is not None:
-            self._set_multi_table_value(row, 4, payload.get("n_gen"))
-            self._set_multi_table_value(row, 5, payload.get("n_eval"))
-            self._set_multi_table_value(row, 6, payload.get("n_nds"))
+            self._set_multi_table_value(row, 5, payload.get("n_gen"))
+            self._set_multi_table_value(row, 6, payload.get("n_eval"))
+            self._set_multi_table_value(row, 7, payload.get("n_nds"))
         try:
             run_index = max(1, int(payload.get("run_index", 1)))
             generation = max(0, int(payload.get("n_gen", 0) or 0))
@@ -1285,19 +1321,20 @@ class MainWindow(QMainWindow):
         row = self._multi_result_rows.get(self._multi_row_key(payload))
         if row is not None:
             values = {
-                3: payload.get("status"),
-                4: payload.get("n_gen"),
-                5: payload.get("n_eval"),
-                6: payload.get("n_nds"),
-                7: payload.get("metrics_path"),
-                8: payload.get("solutions_path"),
-                9: payload.get("error"),
+                4: payload.get("status"),
+                5: payload.get("n_gen"),
+                6: payload.get("n_eval"),
+                7: payload.get("n_nds"),
+                8: payload.get("metrics_path"),
+                9: payload.get("solutions_path"),
+                10: payload.get("error"),
             }
             for column, value in values.items():
                 self._set_multi_table_value(row, column, value)
         self.multi_log.append(
             f"Run {payload.get('run_index')}/{payload.get('total_runs')} {payload.get('status')}: "
-            f"{payload.get('algorithm_name')} on {payload.get('problem_name')}."
+            f"{payload.get('algorithm_name')} on {payload.get('problem_name')} "
+            f"[run_id={payload.get('run_id')}]."
         )
         if payload.get("metrics_path"):
             self.multi_log.append(f"Metrics saved: {payload.get('metrics_path')}")
@@ -1348,6 +1385,9 @@ class MainWindow(QMainWindow):
             project_root=results_root(),
             parent=self,
         )
+        self.multi_log.append(f"Experiment ID: {self._multi_thread.experiment_id}")
+        self.multi_log.append(f"Manifest: {self._multi_thread.manifest_path}")
+        self.multi_log.append(f"Run summary: {self._multi_thread.runs_path}")
         self._multi_thread.run_started.connect(self._on_multi_run_started)
         self._multi_thread.run_progress.connect(self._on_multi_run_progress)
         self._multi_thread.run_finished.connect(self._on_multi_run_finished)
@@ -1372,6 +1412,7 @@ class MainWindow(QMainWindow):
         total = len(results)
         failed = sum(1 for result in results if result.get("status") == "failed")
         completed = sum(1 for result in results if result.get("status") == "completed")
+        worker = self._multi_thread
         self._multi_thread = None
         self._set_multi_running_state(False)
         if status == "completed":
@@ -1382,6 +1423,9 @@ class MainWindow(QMainWindow):
         self.multi_log.append(
             f"Multi experiment {status}: completed={completed}, failed={failed}, processed={total}."
         )
+        if worker is not None:
+            self.multi_log.append(f"Manifest saved: {worker.manifest_path}")
+            self.multi_log.append(f"Run summary saved: {worker.runs_path}")
 
     def _on_multi_experiment_done(self, results: Sequence[Mapping[str, Any]]) -> None:
         # Handle normal completion of every selected combination.
@@ -1551,7 +1595,11 @@ class MainWindow(QMainWindow):
     def _export_window_screenshot(self) -> None:
         # Capture the current window before opening the save dialog.
         screenshot = self.grab()
-        name = f"AGtest_screenshot_{datetime.now():%Y%m%d_%H%M%S}.png"
+        name = (
+            f"{self._run_id}_configuration.png"
+            if self._run_id
+            else f"AGtest_screenshot_{datetime.now():%Y%m%d_%H%M%S}.png"
+        )
         path, _ = QFileDialog.getSaveFileName(
             self, "Save application screenshot", str(results_root() / name), "PNG image (*.png)",
         )
@@ -1567,7 +1615,8 @@ class MainWindow(QMainWindow):
     def _export_plot_png(self) -> None:
         if self._plot_widget is None or self._plot_widget.isHidden():
             return
-        name = f"pareto_epoch_{self._plot_generation}.png" if self._plot_generation else "pareto.png"
+        prefix = f"{self._run_id}_" if self._run_id else ""
+        name = f"{prefix}pareto_epoch_{self._plot_generation}.png" if self._plot_generation else f"{prefix}pareto.png"
         path, _ = QFileDialog.getSaveFileName(self, "Export Pareto plot", str(results_root() / name), "PNG image (*.png)")
         if not path:
             return
@@ -1662,6 +1711,8 @@ class MainWindow(QMainWindow):
         self._plot_feasible_nd_F = payload.get("feasible_nd_F")
         self._plot_population_F = payload.get("population_F")
         self._plot_generation = payload.get("n_gen")
+        config = payload.get("hv_config")
+        self._run_hv_config = dict(config) if isinstance(config, Mapping) else None
 
     def _apply_problem_preview_state(self, problem: Any) -> None:
         # Refresh problem-level Pareto preview data after problem changes.
@@ -1707,6 +1758,15 @@ class MainWindow(QMainWindow):
     def _rebuild_problem_form(self) -> None:
         # Rebuild problem parameter widgets after the selected problem changes.
         entry = self._entry(self.problem_combo, PROBLEMS)
+        if not entry:
+            self._n_obj_widget = None
+            self.problem_form.clear()
+            self._plot_known_pf = None
+            self._plot_n_obj = None
+            self._set_plot_message("No compatible problem is available for the selected algorithm.")
+            self._update_hv_ref_point_label()
+            self._update_run_button_state()
+            return
         self.problem_form.build_for_callable(entry["factory"], entry.get("form_fields"))
         self.problem_form.setToolTip(translate_ui_text(entry.get("form_note") or ""))
         self._connect_problem_form_signals()
@@ -1718,8 +1778,52 @@ class MainWindow(QMainWindow):
     def _rebuild_alg_form(self) -> None:
         # Rebuild algorithm parameter widgets after the selected algorithm changes.
         entry = self._entry(self.alg_combo, ALGORITHMS)
+        if not entry:
+            self.alg_form.clear()
+            return
         self.alg_form.build_for_callable(entry["factory"], entry.get("form_fields"))
         self.alg_form.setToolTip(translate_ui_text(entry.get("form_note") or ""))
+
+    def _problem_allowed_for_selected_algorithm(self, problem_entry: Mapping[str, Any]) -> bool:
+        # Restrict algorithms that require constraints to constrained benchmarks only.
+        algorithm_entry = self._entry(self.alg_combo, ALGORITHMS)
+        if not algorithm_entry.get("requires_constraints", False):
+            return True
+        capabilities = problem_entry.get("capabilities") or {}
+        return bool(capabilities.get("constrained", False))
+
+    def _refresh_problem_choices(self) -> None:
+        # Rebuild the problem list while retaining the current compatible selection.
+        previous_key = self.problem_combo.currentData()
+        choices = [
+            (key, entry)
+            for key, entry in PROBLEMS.items()
+            if self._problem_allowed_for_selected_algorithm(entry)
+        ]
+        self.problem_combo.blockSignals(True)
+        try:
+            self.problem_combo.clear()
+            for key, entry in choices:
+                self.problem_combo.addItem(entry.get("label", key), userData=key)
+            previous_index = self.problem_combo.findData(previous_key)
+            if previous_index >= 0:
+                self.problem_combo.setCurrentIndex(previous_index)
+        finally:
+            self.problem_combo.blockSignals(False)
+        requires_constraints = bool(
+            self._entry(self.alg_combo, ALGORITHMS).get("requires_constraints", False)
+        )
+        self.problem_combo.setToolTip(
+            "Only constrained problems are shown because the selected algorithm requires constraints."
+            if requires_constraints
+            else "Select a benchmark problem for the chosen algorithm."
+        )
+
+    def _on_algorithm_changed(self, *_args: Any) -> None:
+        # Refresh algorithm parameters and the compatible problem list in selection order.
+        self._rebuild_alg_form()
+        self._refresh_problem_choices()
+        self._rebuild_problem_form()
 
     def _connect_problem_param_signals(self) -> None:
         # Track the `n_obj` field because it affects HV validation and plotting.
@@ -1854,14 +1958,19 @@ class MainWindow(QMainWindow):
             values.append(value)
         return values, None
 
-    def _auto_hv_ref_point(self) -> list[float]:
-        # Build the default hypervolume reference point for the current objective count.
-        return [1.1 for _ in range(self._current_n_obj())]
+    def _auto_hv_ref_point(self) -> Optional[list[float]]:
+        # Build a scale-aware hypervolume reference point from the current known front.
+        n_obj = self._current_n_obj()
+        problem_name = self.problem_combo.currentText() if hasattr(self, "problem_combo") else None
+        values = get_hv_ref_point(problem_name, n_obj, pareto_front=self._plot_known_pf)
+        return values.tolist() if values is not None else None
 
     def _hv_ref_point_state(self) -> Tuple[bool, Optional[list[float]], str, Optional[str]]:
         # Return validity, values, mode, and error message for the active HV reference point.
         if not self.hv_manual_radio.isChecked():
             values = self._auto_hv_ref_point()
+            if values is None:
+                return False, None, "AUTO", "Auto HV requires a reliable known Pareto front; enter a manual point."
             return True, values, "AUTO", None
         values, error = self._parse_ref_point_text(self.hv_manual_edit.text())
         if error:
@@ -1871,14 +1980,24 @@ class MainWindow(QMainWindow):
         expected = self._current_n_obj()
         if len(values) != expected:
             return False, None, "MANUAL", f"ref_point has length {len(values)}; expected M={expected}."
+        problem_name = self.problem_combo.currentText() if hasattr(self, "problem_combo") else None
+        config = resolve_hv_config(
+            problem_name,
+            expected,
+            pareto_front=self._plot_known_pf,
+            manual_ref_point=np.asarray(values, dtype=float),
+        )
+        if config is None:
+            return False, None, "MANUAL", "ref_point must be strictly worse than every point of the known Pareto front."
         return True, values, "MANUAL", None
 
     def _validate_hv_manual_ref_point(self) -> bool:
         # Validate manual HV input and mark the field when invalid.
         if not self.hv_manual_radio.isChecked():
             self.hv_manual_edit.setStyleSheet("")
-            self.hv_manual_edit.setToolTip("")
-            return True
+            valid, _values, _mode, error = self._hv_ref_point_state()
+            self.hv_manual_edit.setToolTip("" if valid else error or "")
+            return valid
         valid, _values, _mode, error = self._hv_ref_point_state()
         self.hv_manual_edit.setStyleSheet("" if valid else "border: 1px solid #d33;")
         self.hv_manual_edit.setToolTip("" if valid else error or "")
@@ -1899,7 +2018,9 @@ class MainWindow(QMainWindow):
         manual = self.hv_manual_radio.isChecked()
         self.hv_manual_edit.setEnabled(manual)
         if manual and not self.hv_manual_edit.text().strip():
-            self.hv_manual_edit.setText(" ".join(f"{v:.6g}" for v in self._auto_hv_ref_point()))
+            automatic = self._auto_hv_ref_point()
+            if automatic is not None:
+                self.hv_manual_edit.setText(" ".join(f"{v:.6g}" for v in automatic))
         self._update_hv_ref_point_label()
         self._update_run_button_state()
 
@@ -2022,7 +2143,7 @@ class MainWindow(QMainWindow):
 
     def _export_metrics_table(self) -> None:
         # Export the current metrics table to an XLSX file when it contains data.
-        if self._table.rowCount() <= 0:
+        if self._table.rowCount() <= 0 and self._run_configuration is None:
             self._log("Metrics export skipped: the history table is empty.")
             return
         headers, rows = self._metrics_table_data()
@@ -2031,9 +2152,30 @@ class MainWindow(QMainWindow):
             project_root,
             self._run_algorithm_name or self.alg_combo.currentText(),
             self._run_problem_name or self.problem_combo.currentText(),
+            run_id=self._run_id,
         )
+        experiment_headers, experiment_rows = experiment_configuration_table_data(
+            self._run_configuration or {"run_id": self._run_id or "unavailable"}
+        )
+        config_rows: list[list[object]] = []
+        config = self._run_hv_config
+        if config is None:
+            config_rows.append(["status", "unavailable"])
+        else:
+            for key in ("mode", "source", "normalized", "n_obj", "ideal", "nadir", "raw_reference_point", "reference_point"):
+                value = config.get(key)
+                if isinstance(value, (list, tuple, dict)):
+                    value = json.dumps(value, ensure_ascii=False)
+                config_rows.append([key, "" if value is None else value])
         try:
-            saved_path = write_xlsx_table(path, headers, rows)
+            saved_path = write_xlsx_workbook(
+                path,
+                [
+                    ("Metrics", headers, rows),
+                    ("Configuration", experiment_headers, experiment_rows),
+                    ("HV Configuration", ["field", "value"], config_rows),
+                ],
+            )
         except (OSError, ValueError, zipfile.BadZipFile) as exc:
             self._log(f"Metrics export failed: {exc!r}")
             return
@@ -2097,7 +2239,12 @@ class MainWindow(QMainWindow):
         project_root = results_root()
         algorithm_name = self._run_algorithm_name or self.alg_combo.currentText()
         problem_name = self._run_problem_name or self.problem_combo.currentText()
-        path = self._run_solutions_export_path or solutions_export_path(project_root, algorithm_name, problem_name)
+        path = self._run_solutions_export_path or solutions_export_path(
+            project_root,
+            algorithm_name,
+            problem_name,
+            run_id=self._run_id,
+        )
         if self._nd_solution_sheets:
             sheets = [
                 (f"Epoch {epoch}", headers, rows)
@@ -2106,6 +2253,11 @@ class MainWindow(QMainWindow):
         else:
             headers, rows = self._solution_table_data(payload)
             sheets = [("Solutions", headers, rows)]
+        total_rows = sum(len(rows) for _sheet_name, _headers, rows in sheets)
+        experiment_headers, experiment_rows = experiment_configuration_table_data(
+            self._run_configuration or {"run_id": self._run_id or "unavailable"}
+        )
+        sheets.append(("Configuration", experiment_headers, experiment_rows))
         try:
             saved_path = write_xlsx_workbook(path, sheets)
             created = saved_path.is_file() and saved_path.stat().st_size > 0
@@ -2116,7 +2268,6 @@ class MainWindow(QMainWindow):
             self._log(f"Nondominated-point export did not create a file: {saved_path}")
             return
 
-        total_rows = sum(len(rows) for _sheet_name, _headers, rows in sheets)
         self._log(f"Created Excel file with nondominated points: {saved_path}")
         self._log(f"Number of saved points: {total_rows}")
         self._log(f"Data source run: {algorithm_name} + {problem_name}")
@@ -2229,6 +2380,10 @@ class MainWindow(QMainWindow):
         )
         self._run_metrics_export_path = None
         self._run_solutions_export_path = None
+        self._run_hv_config = None
+        self._run_id = None
+        self._run_configuration = None
+        self.run_id_lbl.setText("Run ID: -")
         self._nd_solution_sheets = {}
         if self._plot_known_pf is None:
             self._reset_plot_axes()
@@ -2236,6 +2391,7 @@ class MainWindow(QMainWindow):
 
     def _finish_run(self, status_text: str, last_payload: Optional[dict]) -> None:
         # Finalize GUI state after completion, cancellation, or early stop.
+        self._finalize_run_configuration(status_text, last_payload or {})
         self._thread = None
         self._set_run_state(status_text, running=False)
         if isinstance(last_payload, dict) and last_payload:
@@ -2252,6 +2408,33 @@ class MainWindow(QMainWindow):
             return
         self._export_metrics_table()
         self._render_plot()
+
+    def _finalize_run_configuration(self, status: str, payload: Mapping[str, Any]) -> None:
+        # Add terminal counters and the resolved HV coordinate system to the frozen run settings.
+        if self._run_configuration is None:
+            return
+        normalized_status = "cancelled" if status in {"stopped", "cancelled"} else status
+        self._run_configuration.update(
+            {
+                "status": normalized_status,
+                "final_generation": payload.get("n_gen"),
+                "final_evaluations": payload.get("n_eval"),
+            }
+        )
+        hv_config = payload.get("hv_config")
+        if not isinstance(hv_config, Mapping):
+            hv_config = self._run_hv_config
+        if isinstance(hv_config, Mapping):
+            self._run_configuration.update(
+                {
+                    "hv_source": hv_config.get("source"),
+                    "hv_normalized": hv_config.get("normalized"),
+                    "hv_ideal": hv_config.get("ideal"),
+                    "hv_nadir": hv_config.get("nadir"),
+                    "hv_raw_reference_point": hv_config.get("raw_reference_point"),
+                    "hv_effective_reference_point": hv_config.get("reference_point"),
+                }
+            )
 
     def _on_generation(self, payload: dict) -> None:
         # Handle a generation payload emitted by the optimization worker.
@@ -2322,21 +2505,87 @@ class MainWindow(QMainWindow):
         if error:
             self._warn("Invalid problem data", error, f"Start: {error}")
             return
-        _valid_ref_point, ref_point, _mode, _err = self._hv_ref_point_state()
-        if ref_point is None:
-            ref_point = self._auto_hv_ref_point()
+        compatibility_problem, compatibility_error = self._instantiate_selected_problem(problem_args)
+        if compatibility_problem is None:
+            self._warn("Invalid problem data", compatibility_error or "Unable to create the problem.", "Start blocked.")
+            return
+        try:
+            validate_algorithm_problem(ALGORITHMS[str(alg_key)], compatibility_problem)
+        except ValueError as exc:
+            self._warn("Unsupported combination", str(exc), f"Start blocked: {exc}")
+            return
+        finally:
+            close = getattr(compatibility_problem, "close", None)
+            if callable(close):
+                close()
+        _valid_ref_point, ref_point, hv_mode, _err = self._hv_ref_point_state()
         self._run_algorithm_key = str(alg_key)
         self._run_algorithm_name = self.alg_combo.currentText() or str(alg_key)
         self._run_problem_name = self.problem_combo.currentText() or str(problem_key)
         self._run_nd_save_mode = str(nd_save_args["mode"])
         self._run_nd_save_step = int(nd_save_args["step"])
         self._prepare_run_visuals()
+        started_at = datetime.now(timezone.utc)
         project_root = results_root()
+        algorithm_entry = ALGORITHMS[str(alg_key)]
+        self._run_id = build_run_id(str(alg_key), str(problem_key), int(run_args["seed"]), now=started_at)
+        self._run_configuration = {
+            "run_id": self._run_id,
+            "started_at_utc": started_at.isoformat().replace("+00:00", "Z"),
+            "execution_mode": "Main",
+            "framework_name": APPLICATION_NAME,
+            "framework_version": __version__,
+            "git_commit": git_commit_for_path(project_root),
+            "problem_key": str(problem_key),
+            "problem_name": self._run_problem_name,
+            "algorithm_key": str(alg_key),
+            "algorithm_name": self._run_algorithm_name,
+            "random_seed": int(run_args["seed"]),
+            "termination": "manual RAN" if run_args["ran"] else "maximum generations",
+            "maximum_generations": run_args["n_gen"],
+            "step_mode": bool(step_mode),
+            "hv_mode": str(hv_mode).lower(),
+            "hv_reference_point": ref_point,
+            "hv_source": None,
+            "hv_normalized": None,
+            "hv_ideal": None,
+            "hv_nadir": None,
+            "hv_raw_reference_point": None,
+            "hv_effective_reference_point": None,
+            "nondominated_export_mode": self._run_nd_save_mode,
+            "nondominated_export_step": self._run_nd_save_step,
+            "verbose": bool(run_args["verbose"]),
+            "parallel_evaluation": bool(run_args["parallel_eval"]),
+            "parallel_workers": int(run_args["parallel_workers"]),
+            "parallel_backend": str(run_args["parallel_backend"]),
+            "implementation_type": algorithm_entry.get("implementation_type", "unavailable"),
+            "implementation_source": algorithm_entry.get("reference", "unavailable"),
+            "implementation_source_commit": algorithm_entry.get("source_commit") or "unavailable",
+            "implementation_verified_against": algorithm_entry.get("verified_against", "unavailable"),
+            "problem_parameters": dict(problem_args),
+            "algorithm_parameters": dict(algorithm_args or {}),
+            "status": "running",
+            "final_generation": None,
+            "final_evaluations": None,
+            **runtime_dependency_versions(),
+        }
+        self.run_id_lbl.setText(f"Run ID: {self._run_id}")
+        self.run_id_lbl.setToolTip(self._run_id)
         self._run_metrics_export_path = next_available_export_path(
-            metrics_export_path(project_root, self._run_algorithm_name, self._run_problem_name)
+            metrics_export_path(
+                project_root,
+                self._run_algorithm_name,
+                self._run_problem_name,
+                run_id=self._run_id,
+            )
         )
         self._run_solutions_export_path = next_available_export_path(
-            solutions_export_path(project_root, self._run_algorithm_name, self._run_problem_name)
+            solutions_export_path(
+                project_root,
+                self._run_algorithm_name,
+                self._run_problem_name,
+                run_id=self._run_id,
+            )
         )
         self._set_run_state("running", running=True)
         if step_mode:
@@ -2348,7 +2597,7 @@ class MainWindow(QMainWindow):
             else "off"
         )
         self._log(
-            f"Start | problem={problem_key} alg={alg_key} seed={run_args['seed']} "
+            f"Start | run_id={self._run_id} problem={problem_key} alg={alg_key} seed={run_args['seed']} "
             f"termination={termination_desc} "
             f"nd_save_mode={self._run_nd_save_mode} nd_save_step={self._run_nd_save_step} "
             f"metrics_path={self._run_metrics_export_path} "
@@ -2371,6 +2620,7 @@ class MainWindow(QMainWindow):
             str(run_args["parallel_backend"]),
             parent=self,
             step_mode=step_mode,
+            hv_mode=hv_mode,
         )
         self._thread.generation.connect(self._on_generation)
         self._thread.done.connect(self._on_run_done)
@@ -2401,9 +2651,13 @@ class MainWindow(QMainWindow):
     def _on_run_failed(self, err: str) -> None:
         # Handle worker failure and restore the idle GUI state.
         self._log(f"Run failed: {err}")
+        last_payload = self._epoch_history[max(self._epoch_history)] if self._epoch_history else {}
+        self._finalize_run_configuration("failed", last_payload)
         self._thread = None
         self._set_run_state("error", running=False)
         self._update_metrics_label(None)
+        self._export_metrics_table()
+        self._export_solution_table({})
         self._render_plot()
         QMessageBox.warning(self, "Optimization error", err)
 

@@ -12,6 +12,17 @@ def _offline_socket(*args, **kwargs):
     raise RuntimeError("Network access is disabled during the standalone self-test")
 
 
+def _algorithm_smoke_specs(algorithms, problems, build_multi_run_specs):
+    """Pair every algorithm with a benchmark matching its constraint contract."""
+    specs = []
+    for algorithm_key, entry in algorithms.items():
+        problem_key = "tanaka" if entry.get("requires_constraints") else "kursawe"
+        if problem_key not in problems:
+            raise KeyError(f"Standalone self-test problem is unavailable: {problem_key}")
+        specs.extend(build_multi_run_specs([problem_key], [algorithm_key]))
+    return specs
+
+
 def main(args: list[str]) -> int:
     if len(args) != 1:
         return 2
@@ -78,7 +89,7 @@ def main(args: list[str]) -> int:
 
         completed, failures = [], []
         worker = MultiExperimentWorker(
-            build_multi_run_specs(["kursawe"], list(ALGORITHMS)),
+            _algorithm_smoke_specs(ALGORITHMS, PROBLEMS, build_multi_run_specs),
             n_gen=2, seed=1,
             project_root=results_root() if report["frozen"] else report_path.parent / "exports",
         )

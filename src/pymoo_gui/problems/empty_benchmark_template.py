@@ -1,4 +1,5 @@
 # Template module for implementing a custom pymoo-compatible benchmark problem.
+# Provenance: AGtest-framework template; no benchmark formulation is claimed by this module.
 
 # ------------------------------------------------------------------------------------
 # Module: empty_benchmark_template.py
